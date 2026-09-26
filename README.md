@@ -9,10 +9,13 @@
 </h4>
 
 <p align="center">
-  <img alt="License" src="https://img.shields.io/github/license/nefiangelo/VTTRPG?color=7c3aed&style=for-the-badge" />
+  <!-- <img alt="License" src="https://img.shields.io/github/license/nefiangelo/VTTRPG?color=7c3aed&style=for-the-badge" /> -->
   <img alt="Status" src="https://img.shields.io/badge/status-in%20development-f59e0b?style=for-the-badge" />
+  <br>
   <img alt="Electron" src="https://img.shields.io/badge/Electron-39-47848F?style=for-the-badge&logo=electron&logoColor=white" />
+  <br>
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black" />
+  <br>
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
 </p>
 
