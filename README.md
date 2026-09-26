@@ -138,7 +138,7 @@ Please follow conventional commits where possible.
 
 ## 👥 Authors
 
-- **Néfi Ângelo** — [@nefiangelo](https://github.com/nefiangelo)
+- **Néfi Ângelo**
 - **Lucas Rock**
 
 ---
