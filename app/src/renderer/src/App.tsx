@@ -1,6 +1,6 @@
 import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
-import LoginPage from './pages/loginPage'
+// import electronLogo from './assets/electron.svg'
+import LoginPage from './pages/LoginPage'
 
 function App(): React.JSX.Element {
 

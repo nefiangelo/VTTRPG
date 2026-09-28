@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import styles from "./loginPage.module.css";
+import styles from "./LoginPage.module.css";
 
 function LoginPage(): React.JSX.Element {
     const [username, setUsername] = useState('');
