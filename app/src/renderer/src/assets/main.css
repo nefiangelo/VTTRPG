@@ -5,7 +5,7 @@ body {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background-image: url('./wavy-lines.svg');
+  /* background-image: url('./wavy-lines.svg'); */
   background-size: cover;
   user-select: none;
 }
@@ -146,6 +146,7 @@ code {
   font-size: 14px;
   line-height: 14px;
   opacity: 0.8;
+
   &:last-child {
     border: none;
   }
@@ -164,6 +165,7 @@ code {
 }
 
 @media (max-width: 350px) {
+
   .tip,
   .actions {
     display: none;
