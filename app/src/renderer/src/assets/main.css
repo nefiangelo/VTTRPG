@@ -1,4 +1,4 @@
-@import './base.css';
+/* ── Global Reset & Base ── */
 
 body {
   display: flex;
@@ -80,29 +80,30 @@ code {
   font-weight: 700;
 }
 
-.ts {
-  background: -webkit-linear-gradient(315deg, #3178c6 45%, #f0dc4e);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 700;
+html, body, #root {
+  height: 100%;
+  width: 100%;
 }
 
-.actions {
-  display: flex;
-  padding-top: 32px;
-  margin: -6px;
-  flex-wrap: wrap;
-  justify-content: flex-start;
+body {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  background: #0d1117;
+  color: #e6edf3;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
-.action {
-  flex-shrink: 0;
-  padding: 6px;
-}
+ul { list-style: none; }
 
-.action a {
-  cursor: pointer;
+a {
+  color: inherit;
   text-decoration: none;
   display: inline-block;
   border: 1px solid transparent;
