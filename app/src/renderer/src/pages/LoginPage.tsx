@@ -1,19 +1,30 @@
-import React, { useState } from 'react';
-import styles from "./LoginPage.module.css";
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import styles from './LoginPage.module.css'
 
 function LoginPage(): React.JSX.Element {
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
+    const { login } = useAuth()
+    const navigate = useNavigate()
 
-    const handleLogin = (e: React.SubmitEvent) => {
-        e.preventDefault();
-        console.log('Tentando logar com:', username, password);
-        // Lógica de login do Electron aqui
-    };
+    const [username, setUsername] = useState('')
+    const [password, setPassword] = useState('')
+    const [error, setError] = useState<string | null>(null)
+    const [loading, setLoading] = useState(false)
+
+    const handleLogin = async (e: React.FormEvent) => {
+        e.preventDefault()
+        setError(null)
+        setLoading(true)
+        const err = await login(username, password)
+        setLoading(false)
+        if (err) { setError(err); return }
+        navigate('/home')
+    }
 
     const handleRegister = () => {
-        console.log('Redirecionar para registro');
-    };
+        navigate('/signup')
+    }
 
     return (
         <main className={styles.mainContainer}>
@@ -27,6 +38,7 @@ function LoginPage(): React.JSX.Element {
                 </div>
 
                 <form onSubmit={handleLogin} style={{ width: '100%' }}>
+                    {error && <p style={{ color: '#ff6b6b', fontSize: '13px', marginBottom: '12px', textAlign: 'center' }}>{error}</p>}
                     <div className={styles.inputGroup}>
                         <input
                             type="text"
@@ -49,8 +61,8 @@ function LoginPage(): React.JSX.Element {
                         />
                     </div>
 
-                    <button type="submit" className={styles.btnPrimary}>
-                        Acessar
+                    <button type="submit" className={styles.btnPrimary} disabled={loading}>
+                        {loading ? 'Entrando...' : 'Acessar'}
                     </button>
                 </form>
 
