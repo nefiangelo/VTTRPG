@@ -8,6 +8,8 @@ body {
   /* background-image: url('./wavy-lines.svg'); */
   background-size: cover;
   user-select: none;
+  margin: 0;
+  padding: 0;
 }
 
 code {
@@ -31,7 +33,7 @@ code {
   align-items: center;
   justify-content: center;
   flex-direction: column;
-  margin-bottom: 80px;
+  /* margin-bottom: 80px; */
 }
 
 .logo {
@@ -80,7 +82,9 @@ code {
   font-weight: 700;
 }
 
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
   width: 100%;
 }
@@ -100,7 +104,9 @@ body {
   line-height: 1.6;
 }
 
-ul { list-style: none; }
+ul {
+  list-style: none;
+}
 
 a {
   color: inherit;
