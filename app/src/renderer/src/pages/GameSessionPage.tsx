@@ -1,7 +1,10 @@
+import React from 'react'
+
 export default function GameSessionPage(): React.JSX.Element {
   return (
-    <div>
-      <h1>Game Session</h1>
-    </div>
+    <main>
+      <h1>Sessão de Jogo</h1>
+      <p>Página da sessão (em construção)</p>
+    </main>
   )
 }

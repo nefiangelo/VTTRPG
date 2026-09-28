@@ -1,0 +1,92 @@
+.mainContainer {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    width: 100vw;
+    background-image: url('../assets/LoginBG.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+}
+
+.loginCard {
+    background-color: rgba(34, 34, 34, 0.95);
+    padding: 40px;
+    border-radius: 12px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.userIcon {
+    width: 70px;
+    height: 70px;
+    background-color: #fff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.userIcon svg {
+    width: 40px;
+    height: 40px;
+    fill: #222;
+}
+
+.inputGroup {
+    width: 100%;
+    margin-bottom: 25px;
+}
+
+.inputField {
+    width: 100%;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid #777;
+    color: #fff;
+    font-size: 16px;
+    padding: 8px 0;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.inputField::placeholder {
+    color: #999;
+}
+
+.inputField:focus {
+    border-bottom: 1px solid #e53935;
+    /* Fica vermelho ao clicar no input */
+}
+
+.btnPrimary {
+    width: 100%;
+    background-color: #d32f2f;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-bottom: 15px;
+}
+
+.btnPrimary:hover {
+    background-color: #b71c1c;
+}
+
+.registerText {
+    color: #ccc;
+    font-size: 12px;
+    margin-bottom: 10px;
+}
