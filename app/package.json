@@ -23,11 +23,13 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react-router-dom": "^5.3.3",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
     "electron-updater": "^6.3.9",
-    "react-router-dom": "^7.18.4"
+    "react-router-dom": "^7.18.4",
+    "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
