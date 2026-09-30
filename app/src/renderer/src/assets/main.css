@@ -3,9 +3,14 @@
 @theme {
   --color-vtt-dark-gray: #2C2C2C;
   --color-vtt-light: #EAEAEA;
+  --color-vtt-dark-red: #961D1D;
   --color-vtt-red: #D32F2F;
+  --color-vtt-light-red: #E34646;
   --color-vtt-light-gray: #444444;
   --color-vtt-dark: #1A1A1A;
+  --color-vtt-light-green: #43A15D;
+  --color-vtt-green: #2E6F40;
+  --color-vtt-dark-green: #1D4829;
 }
 
 html,

@@ -1,7 +1,7 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
-import CampaignCard from '../components/Sidebar/CampaignCard'
+import CampaignCard from '../components/CampaignCard'
 import { useCampaigns } from '../context/CampaignContext'
 import type { Campaign } from '../../../preload/index.d'
 
@@ -40,7 +40,7 @@ export default function HomePage(): React.JSX.Element {
         ) : (
           <>
             {campaigns.length > 0 && (
-              <section className='flex flex-wrap '>
+              <section className='flex flex-wrap gap-10'>
                 <CampaignCard onClick={() => navigate('/new-campaign')} campaign={undefined} />
 
                 <div className='flex flex-wrap gap-5'>
@@ -48,7 +48,6 @@ export default function HomePage(): React.JSX.Element {
                     <CampaignCard
                       key={c.id}
                       campaign={c}
-                      onClick={() => navigate('/session')}
                     />
                   ))}
                 </div>
