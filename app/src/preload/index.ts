@@ -16,7 +16,22 @@ const api = {
       ipcRenderer.invoke('campaign:getByUser', userId),
     getSystems: () =>
       ipcRenderer.invoke('campaign:getSystems'),
-  }
+  },
+
+  systems: {
+    getAll: () => ipcRenderer.invoke('system:getAll'),
+    getById: (id: number) => ipcRenderer.invoke('system:getById', id),
+    create: (payload: unknown) => ipcRenderer.invoke('system:create', payload),
+    update: (payload: unknown) => ipcRenderer.invoke('system:update', payload),
+    delete: (id: number) => ipcRenderer.invoke('system:delete', id),
+  },
+
+  content: {
+    getBySystem: (rpgSystemId: number, type?: string) => ipcRenderer.invoke('content:getBySystem', rpgSystemId, type),
+    create: (payload: unknown) => ipcRenderer.invoke('content:create', payload),
+    update: (payload: unknown) => ipcRenderer.invoke('content:update', payload),
+    delete: (id: number) => ipcRenderer.invoke('content:delete', id),
+  },
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
