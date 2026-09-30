@@ -1,24 +1,59 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Campaign } from '../../../../preload/index.d'
 
+
 interface Props {
-  campaign: Campaign
+  campaign?: Campaign
   onClick?: () => void
 }
 
 const STATUS_LABEL: Record<Campaign['status'], string> = {
-  active:   'Ativa',
-  paused:   'Pausada',
+  active: 'Ativa',
+  paused: 'Pausada',
   finished: 'Finalizada',
 }
 
 const STATUS_COLOR: Record<Campaign['status'], string> = {
-  active:   'bg-green-600',
-  paused:   'bg-yellow-600',
+  active: 'bg-green-600',
+  paused: 'bg-yellow-600',
   finished: 'bg-neutral-500',
 }
 
 export default function CampaignCard({ campaign, onClick }: Props): React.JSX.Element {
+  const navigate = useNavigate()
+
+  if (campaign == undefined) {
+    return (
+      <article
+        onClick={onClick}
+        className='group relative w-60 h-72 rounded-xl overflow-hidden cursor-pointer
+                 border border-vtt-dark-gray bg-vtt-dark
+                 hover:border-vtt-red transition-all duration-300
+                 hover:shadow-[0_0_24px_rgba(211,47,47,0.25)]
+                 hover:-translate-y-1 flex flex-col select-none'
+      >
+        {/* Decorative gradient banner */}
+        <div className='h-28 bg-gradient-to-br from-vtt-dark-gray via-vtt-light-gray to-vtt-dark
+                      flex items-center justify-center text-5xl shrink-0'>
+          ??
+        </div>
+
+        {/* Content */}
+        <div className='flex flex-col gap-2 p-4 flex-1 h-20 w-20'>
+          <button
+            onClick={() => navigate('/new-campaign')}
+            className='px-5 py-2.5 rounded-lg bg-vtt-red text-white text-sm font-semibold
+                      hover:bg-red-700 transition-colors'
+          >
+            + Nova Campanha
+          </button>
+        </div>
+      </article>
+    )
+  }
+
+
   return (
     <article
       onClick={onClick}
