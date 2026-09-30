@@ -1,28 +1,61 @@
 import React from 'react'
+import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
-import CampaignCard from '@renderer/components/Sidebar/CampaignCard'
+import CampaignCard from '../components/Sidebar/CampaignCard'
+import { useCampaigns } from '../context/CampaignContext'
+import type { Campaign } from '../../../preload/index.d'
 
-export default function HomePage(): React.JSX.Element {
+/* --- Loading skeleton -------------------------------------- */
+function SkeletonCard(): React.JSX.Element {
   return (
-    /* Full-screen flex row: sidebar + page content side by side */
-    <div className='flex flex-row'>
+    <div className='w-60 h-72 rounded-xl bg-vtt-dark border border-vtt-dark-gray animate-pulse' />
+  )
+}
+
+/* --- Page -------------------------------------------------- */
+export default function HomePage(): React.JSX.Element {
+  const navigate = useNavigate()
+  const { campaigns, isLoading } = useCampaigns()
+
+  return (
+    <div className='flex flex-row h-screen overflow-hidden'>
       <Sidebar />
 
-      <main className='p-10 w-full flex flex-col items-center justify-start'>
-        {/* Header and filters */}
-        <section className='flex flex-col w-full'>
+      <main className='flex-1 overflow-y-auto p-10 flex flex-col gap-8'>
+        {/* Header */}
+        <header className='flex items-center justify-between'>
           <div>
-            <h1 className='w-fit h-12 text-3xl mb-4'>Campanhas</h1>
+            <h1 className='text-3xl font-bold text-vtt-light'>Campanhas</h1>
           </div>
-          <div className='flex justify-center h-10 mb-2.5 mb-2.5 border-vtt-red border-b'>
-            filtros
-          </div>
-        </section>
+        </header>
 
-        {/* Campaigns Cards List */}
-        <section className='w-full px-14 flex justify-start items-start'>
-          <CampaignCard campaignName='Campanha 1'></CampaignCard>
-        </section>
+        {/* Divider */}
+        <div className='h-px bg-vtt-dark-gray' />
+
+        {/* Content */}
+        {isLoading ? (
+          <section className='flex flex-wrap gap-5'>
+            {Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)}
+          </section>
+        ) : (
+          <>
+            {campaigns.length > 0 && (
+              <section className='flex flex-wrap '>
+                <CampaignCard onClick={() => navigate('/new-campaign')} campaign={undefined} />
+
+                <div className='flex flex-wrap gap-5'>
+                  {campaigns.map((c: Campaign) => (
+                    <CampaignCard
+                      key={c.id}
+                      campaign={c}
+                      onClick={() => navigate('/session')}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
       </main>
     </div>
   )
