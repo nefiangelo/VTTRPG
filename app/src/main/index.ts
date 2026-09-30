@@ -3,6 +3,8 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { register, login } from './auth'
+import { createCampaign, getCampaignsByUser, getRpgSystems } from './campaign'
+import type { CreateCampaignPayload } from './campaign'
 import { closeDb } from './db'
 
 function createWindow(): void {
@@ -61,6 +63,17 @@ app.whenReady().then(() => {
   )
   ipcMain.handle('auth:login', (_e, username: string, password: string) =>
     login(username, password)
+  )
+
+  // Campaigns
+  ipcMain.handle('campaign:create', (_e, payload: CreateCampaignPayload) =>
+    createCampaign(payload)
+  )
+  ipcMain.handle('campaign:getByUser', (_e, userId: number) =>
+    getCampaignsByUser(userId)
+  )
+  ipcMain.handle('campaign:getSystems', () =>
+    getRpgSystems()
   )
 
   createWindow()

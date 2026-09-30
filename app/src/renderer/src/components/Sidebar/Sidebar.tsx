@@ -71,7 +71,7 @@ export default function Sidebar(): React.JSX.Element {
     >
       <section className='h-full flex flex-col justify-between py-8 px-3 transition-all duration-300'>
         {/* TOP: HEADER (TITLE + MINIMIZE/EXPAND BUTTON) */}
-        <div className={`flex items-center ${expanded ? 'justify-between px-3' : 'justify-center'} w-full min-h-[40px]`}>
+        <div className={`flex items-center ${expanded ? 'justify-between px-3' : 'justify-center'} w-full min-h-10`}>
           {expanded && (
             <span className='text-xl font-bold whitespace-nowrap text-vtt-light tracking-wide'>
               Loot & Dice
@@ -96,8 +96,8 @@ export default function Sidebar(): React.JSX.Element {
                 key={index}
                 onClick={() => navigate(item.route)}
                 className={`flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors ${isActive
-                    ? 'bg-vtt-dark-gray text-vtt-light'
-                    : 'hover:bg-vtt-dark-gray text-neutral-300 hover:text-vtt-light'
+                  ? 'bg-vtt-dark-gray text-vtt-light'
+                  : 'hover:bg-vtt-dark-gray text-neutral-300 hover:text-vtt-light'
                   }`}
                 title={!expanded ? item.label : undefined}
               >
@@ -113,8 +113,8 @@ export default function Sidebar(): React.JSX.Element {
           <div
             onClick={() => navigate(NAV_ITEMS_BOTTOM[0].route)}
             className={`flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors ${location.pathname === NAV_ITEMS_BOTTOM[0].route
-                ? 'bg-vtt-dark-gray text-vtt-light'
-                : 'hover:bg-vtt-dark-gray text-neutral-300 hover:text-vtt-light'
+              ? 'bg-vtt-dark-gray text-vtt-light'
+              : 'hover:bg-vtt-dark-gray text-neutral-300 hover:text-vtt-light'
               }`}
             title={!expanded ? NAV_ITEMS_BOTTOM[0].label : undefined}
           >

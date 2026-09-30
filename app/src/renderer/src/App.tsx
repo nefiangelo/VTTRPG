@@ -1,5 +1,6 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { CampaignProvider } from './context/CampaignContext'
 
 import LoginPage        from './pages/LoginPage'
 import SignUpPage       from './pages/SignUpPage'
@@ -47,7 +48,9 @@ export default function App(): React.JSX.Element {
   return (
     <HashRouter>
       <AuthProvider>
-        <AppRoutes />
+        <CampaignProvider>
+          <AppRoutes />
+        </CampaignProvider>
       </AuthProvider>
     </HashRouter>
   )
