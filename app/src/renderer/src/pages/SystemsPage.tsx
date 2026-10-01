@@ -19,6 +19,13 @@ function uid(): string {
   return Math.random().toString(36).slice(2, 9)
 }
 
+function reorder<T>(list: T[], startIndex: number, endIndex: number): T[] {
+  const result = Array.from(list)
+  const [removed] = result.splice(startIndex, 1)
+  result.splice(endIndex, 0, removed)
+  return result
+}
+
 const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Western', 'Modern', 'Post-Apocalyptic', 'Cyberpunk', 'Steampunk', 'Medieval', 'Outro']
 
 /* ─── Icons ──────────────────────────────────────────────────── */
@@ -40,19 +47,90 @@ const IconArrowLeft = (): React.JSX.Element => (
 const IconScroll = (): React.JSX.Element => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
 )
+const IconGrip = (): React.JSX.Element => (
+  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+    <circle cx="8.5" cy="6" r="1.5" />
+    <circle cx="15.5" cy="6" r="1.5" />
+    <circle cx="8.5" cy="12" r="1.5" />
+    <circle cx="15.5" cy="12" r="1.5" />
+    <circle cx="8.5" cy="18" r="1.5" />
+    <circle cx="15.5" cy="18" r="1.5" />
+  </svg>
+)
 
 /* ─── Attribute Field Row ────────────────────────────────────── */
 function FieldRow({
   field,
+  index,
   onUpdate,
   onRemove,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
+  isDragging,
+  isOver,
 }: {
   field: AttributeField
+  index: number
   onUpdate: (f: AttributeField) => void
   onRemove: () => void
+  onDragStart?: (e: React.DragEvent, index: number) => void
+  onDragOver?: (e: React.DragEvent, index: number) => void
+  onDragLeave?: (e: React.DragEvent) => void
+  onDrop?: (e: React.DragEvent, index: number) => void
+  onDragEnd?: (e: React.DragEvent) => void
+  isDragging?: boolean
+  isOver?: boolean
 }): React.JSX.Element {
+  const [isHandlePressed, setIsHandlePressed] = useState(false)
+
   return (
-    <div className="flex items-center gap-2 bg-vtt-dark-gray/40 rounded-lg p-2.5 group/field">
+    <div
+      draggable={isHandlePressed}
+      onDragStart={e => {
+        e.stopPropagation()
+        onDragStart?.(e, index)
+      }}
+      onDragOver={e => {
+        e.stopPropagation()
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        onDragOver?.(e, index)
+      }}
+      onDragLeave={e => {
+        e.stopPropagation()
+        onDragLeave?.(e)
+      }}
+      onDrop={e => {
+        e.stopPropagation()
+        e.preventDefault()
+        setIsHandlePressed(false)
+        onDrop?.(e, index)
+      }}
+      onDragEnd={e => {
+        e.stopPropagation()
+        setIsHandlePressed(false)
+        onDragEnd?.(e)
+      }}
+      className={`flex items-center gap-2 bg-vtt-dark-gray/40 rounded-lg p-2.5 group/field transition-all duration-150 border ${
+        isDragging
+          ? 'opacity-40 border-dashed border-vtt-red/60 scale-[0.99] bg-vtt-dark-gray/20'
+          : isOver
+            ? 'border-vtt-red/80 ring-2 ring-vtt-red/50 bg-red-950/20 shadow-[0_0_12px_rgba(211,47,47,0.25)]'
+            : 'border-transparent hover:border-vtt-dark-gray'
+      }`}
+    >
+      <div
+        onMouseDown={() => setIsHandlePressed(true)}
+        onMouseUp={() => setIsHandlePressed(false)}
+        className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-neutral-500 hover:text-vtt-light transition-colors select-none flex items-center justify-center shrink-0"
+        title="Arraste para reorganizar"
+      >
+        <IconGrip />
+      </div>
+
       <input
         type="text"
         value={field.label}
@@ -130,13 +208,47 @@ function FieldRow({
 /* ─── Attribute Group Card ───────────────────────────────────── */
 function GroupCard({
   group,
+  index,
   onUpdate,
   onRemove,
+  onDragStartGroup,
+  onDragOverGroup,
+  onDragLeaveGroup,
+  onDropGroup,
+  onDragEndGroup,
+  isDraggingGroup,
+  isOverGroup,
+  onFieldDragStart,
+  onFieldDragOver,
+  onFieldDragLeave,
+  onFieldDrop,
+  onFieldDragEnd,
+  draggedFieldInfo,
+  overFieldInfo,
+  onDropFieldInEmptyGroup,
 }: {
   group: AttributeGroup
+  index: number
   onUpdate: (g: AttributeGroup) => void
   onRemove: () => void
+  onDragStartGroup?: (e: React.DragEvent, index: number) => void
+  onDragOverGroup?: (e: React.DragEvent, index: number) => void
+  onDragLeaveGroup?: (e: React.DragEvent) => void
+  onDropGroup?: (e: React.DragEvent, index: number) => void
+  onDragEndGroup?: (e: React.DragEvent) => void
+  isDraggingGroup?: boolean
+  isOverGroup?: boolean
+  onFieldDragStart?: (e: React.DragEvent, groupId: string, fieldIndex: number) => void
+  onFieldDragOver?: (e: React.DragEvent, groupId: string, fieldIndex: number) => void
+  onFieldDragLeave?: (e: React.DragEvent) => void
+  onFieldDrop?: (e: React.DragEvent, groupId: string, fieldIndex: number) => void
+  onFieldDragEnd?: (e: React.DragEvent) => void
+  draggedFieldInfo?: { groupId: string; fieldIndex: number } | null
+  overFieldInfo?: { groupId: string; fieldIndex: number } | null
+  onDropFieldInEmptyGroup?: (e: React.DragEvent, groupId: string) => void
 }): React.JSX.Element {
+  const [isHandlePressed, setIsHandlePressed] = useState(false)
+
   const addField = (): void => {
     onUpdate({
       ...group,
@@ -155,9 +267,47 @@ function GroupCard({
   }
 
   return (
-    <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden">
+    <div
+      draggable={isHandlePressed}
+      onDragStart={e => {
+        onDragStartGroup?.(e, index)
+      }}
+      onDragOver={e => {
+        if (onDragOverGroup) {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+          onDragOverGroup(e, index)
+        }
+      }}
+      onDragLeave={e => {
+        onDragLeaveGroup?.(e)
+      }}
+      onDrop={e => {
+        setIsHandlePressed(false)
+        onDropGroup?.(e, index)
+      }}
+      onDragEnd={e => {
+        setIsHandlePressed(false)
+        onDragEndGroup?.(e)
+      }}
+      className={`border rounded-xl bg-vtt-dark overflow-hidden transition-all duration-150 ${
+        isDraggingGroup
+          ? 'opacity-40 border-dashed border-vtt-red/60 scale-[0.99]'
+          : isOverGroup
+            ? 'border-vtt-red ring-2 ring-vtt-red/50 shadow-[0_0_16px_rgba(211,47,47,0.3)]'
+            : 'border-vtt-dark-gray'
+      }`}
+    >
       {/* Group header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-vtt-dark-gray/30 border-b border-vtt-dark-gray">
+        <div
+          onMouseDown={() => setIsHandlePressed(true)}
+          onMouseUp={() => setIsHandlePressed(false)}
+          className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-neutral-500 hover:text-vtt-light transition-colors select-none flex items-center justify-center shrink-0"
+          title="Arraste para reorganizar grupo"
+        >
+          <IconGrip />
+        </div>
         <input
           type="text"
           value={group.label}
@@ -179,12 +329,40 @@ function GroupCard({
 
       {/* Fields */}
       <div className="flex flex-col gap-2 p-4">
-        {group.fields.length === 0 && (
-          <p className="text-neutral-600 text-xs text-center py-2">Nenhum campo ainda. Adicione abaixo.</p>
+        {group.fields.length === 0 ? (
+          <div
+            onDragOver={e => {
+              if (draggedFieldInfo) {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+              }
+            }}
+            onDrop={e => {
+              e.preventDefault()
+              onDropFieldInEmptyGroup?.(e, group.id)
+            }}
+            className="text-neutral-500 text-xs text-center py-4 border border-dashed border-vtt-dark-gray rounded-lg transition-colors hover:border-vtt-red/50"
+          >
+            Nenhum campo ainda. Adicione abaixo ou arraste campos para cá.
+          </div>
+        ) : (
+          group.fields.map((f, i) => (
+            <FieldRow
+              key={f.key ? `${f.key}-${i}` : String(i)}
+              field={f}
+              index={i}
+              onUpdate={nf => updateField(i, nf)}
+              onRemove={() => removeField(i)}
+              onDragStart={e => onFieldDragStart?.(e, group.id, i)}
+              onDragOver={e => onFieldDragOver?.(e, group.id, i)}
+              onDragLeave={onFieldDragLeave}
+              onDrop={e => onFieldDrop?.(e, group.id, i)}
+              onDragEnd={onFieldDragEnd}
+              isDragging={draggedFieldInfo?.groupId === group.id && draggedFieldInfo?.fieldIndex === i}
+              isOver={overFieldInfo?.groupId === group.id && overFieldInfo?.fieldIndex === i}
+            />
+          ))
         )}
-        {group.fields.map((f, i) => (
-          <FieldRow key={f.key} field={f} onUpdate={nf => updateField(i, nf)} onRemove={() => removeField(i)} />
-        ))}
 
         <button
           type="button"
@@ -212,9 +390,13 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [version, setVersion] = useState(initial?.version ?? '')
   const [genre, setGenre] = useState(initial?.genre ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
-  const [groups, setGroups] = useState<AttributeGroup[]>(
-    initial?.structure?.attributeGroups ?? []
-  )
+  const [groups, setGroups] = useState<AttributeGroup[]>(() => {
+    return (initial?.structure?.attributeGroups ?? []).map(g => ({
+      ...g,
+      id: g.id || uid(),
+      fields: g.fields ?? [],
+    }))
+  })
   const [contentFields, setContentFields] = useState<Partial<Record<ContentType, AttributeField[]>>>(() => {
     return initial?.structure?.contentFields ?? {}
   })
@@ -222,6 +404,162 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [selectedContentType, setSelectedContentType] = useState<ContentType>('class')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  /* ─── Content Fields DnD ───────────────────────────────────── */
+  const [draggedContentField, setDraggedContentField] = useState<number | null>(null)
+  const [overContentField, setOverContentField] = useState<number | null>(null)
+
+  const handleContentFieldDragStart = (_e: React.DragEvent, index: number): void => {
+    setDraggedContentField(index)
+  }
+
+  const handleContentFieldDragOver = (e: React.DragEvent, index: number): void => {
+    if (draggedContentField === null || draggedContentField === index) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (overContentField !== index) {
+      setOverContentField(index)
+    }
+  }
+
+  const handleContentFieldDragLeave = (): void => {
+    setOverContentField(null)
+  }
+
+  const handleContentFieldDrop = (e: React.DragEvent, targetIndex: number): void => {
+    e.preventDefault()
+    if (draggedContentField !== null && draggedContentField !== targetIndex) {
+      setContentFields(prev => {
+        const list = prev[selectedContentType] ?? []
+        return {
+          ...prev,
+          [selectedContentType]: reorder(list, draggedContentField, targetIndex),
+        }
+      })
+    }
+    setDraggedContentField(null)
+    setOverContentField(null)
+  }
+
+  const handleContentFieldDragEnd = (): void => {
+    setDraggedContentField(null)
+    setOverContentField(null)
+  }
+
+  /* ─── Groups DnD ───────────────────────────────────────────── */
+  const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null)
+  const [overGroupIndex, setOverGroupIndex] = useState<number | null>(null)
+
+  const handleGroupDragStart = (_e: React.DragEvent, index: number): void => {
+    setDraggedGroupIndex(index)
+  }
+
+  const handleGroupDragOver = (e: React.DragEvent, index: number): void => {
+    if (draggedGroupIndex === null || draggedGroupIndex === index) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (overGroupIndex !== index) {
+      setOverGroupIndex(index)
+    }
+  }
+
+  const handleGroupDragLeave = (): void => {
+    setOverGroupIndex(null)
+  }
+
+  const handleGroupDrop = (e: React.DragEvent, targetIndex: number): void => {
+    e.preventDefault()
+    if (draggedGroupIndex !== null && draggedGroupIndex !== targetIndex) {
+      setGroups(prev => reorder(prev, draggedGroupIndex, targetIndex))
+    }
+    setDraggedGroupIndex(null)
+    setOverGroupIndex(null)
+  }
+
+  const handleGroupDragEnd = (): void => {
+    setDraggedGroupIndex(null)
+    setOverGroupIndex(null)
+  }
+
+  /* ─── Group Fields DnD ─────────────────────────────────────── */
+  const [draggedGroupField, setDraggedGroupField] = useState<{ groupId: string; fieldIndex: number } | null>(null)
+  const [overGroupField, setOverGroupField] = useState<{ groupId: string; fieldIndex: number } | null>(null)
+
+  const handleFieldDragStart = (_e: React.DragEvent, groupId: string, fieldIndex: number): void => {
+    setDraggedGroupField({ groupId, fieldIndex })
+  }
+
+  const handleFieldDragOver = (e: React.DragEvent, groupId: string, fieldIndex: number): void => {
+    if (!draggedGroupField) return
+    if (draggedGroupField.groupId === groupId && draggedGroupField.fieldIndex === fieldIndex) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (overGroupField?.groupId !== groupId || overGroupField?.fieldIndex !== fieldIndex) {
+      setOverGroupField({ groupId, fieldIndex })
+    }
+  }
+
+  const handleFieldDragLeave = (): void => {
+    setOverGroupField(null)
+  }
+
+  const handleFieldDrop = (e: React.DragEvent, targetGroupId: string, targetFieldIndex: number): void => {
+    e.preventDefault()
+    if (draggedGroupField) {
+      const { groupId: srcGroupId, fieldIndex: srcIndex } = draggedGroupField
+      if (srcGroupId === targetGroupId) {
+        if (srcIndex !== targetFieldIndex) {
+          setGroups(prev =>
+            prev.map(g => {
+              if (g.id !== srcGroupId) return g
+              return { ...g, fields: reorder(g.fields, srcIndex, targetFieldIndex) }
+            })
+          )
+        }
+      } else {
+        setGroups(prev => {
+          const next = prev.map(g => ({ ...g, fields: [...g.fields] }))
+          const srcGroup = next.find(g => g.id === srcGroupId)
+          const tgtGroup = next.find(g => g.id === targetGroupId)
+          if (srcGroup && tgtGroup) {
+            const [moved] = srcGroup.fields.splice(srcIndex, 1)
+            if (moved) {
+              tgtGroup.fields.splice(targetFieldIndex, 0, moved)
+            }
+          }
+          return next
+        })
+      }
+    }
+    setDraggedGroupField(null)
+    setOverGroupField(null)
+  }
+
+  const handleFieldDragEnd = (): void => {
+    setDraggedGroupField(null)
+    setOverGroupField(null)
+  }
+
+  const handleDropFieldInEmptyGroup = (e: React.DragEvent, targetGroupId: string): void => {
+    e.preventDefault()
+    if (draggedGroupField) {
+      const { groupId: srcGroupId, fieldIndex: srcIndex } = draggedGroupField
+      setGroups(prev => {
+        const next = prev.map(g => ({ ...g, fields: [...g.fields] }))
+        const srcGroup = next.find(g => g.id === srcGroupId)
+        const tgtGroup = next.find(g => g.id === targetGroupId)
+        if (srcGroup && tgtGroup) {
+          const [moved] = srcGroup.fields.splice(srcIndex, 1)
+          if (moved) {
+            tgtGroup.fields.push(moved)
+          }
+        }
+        return next
+      })
+    }
+    setDraggedGroupField(null)
+    setOverGroupField(null)
+  }
 
   const addGroup = (): void => {
     setGroups(prev => [...prev, { id: uid(), label: '', fields: [] }])
@@ -511,10 +849,18 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
                         )}
                         {currentFields.map((f, i) => (
                           <FieldRow
-                            key={f.key + i}
+                            key={f.key ? `${f.key}-${i}` : String(i)}
                             field={f}
+                            index={i}
                             onUpdate={nf => updateContentField(i, nf)}
                             onRemove={() => removeContentField(i)}
+                            onDragStart={handleContentFieldDragStart}
+                            onDragOver={handleContentFieldDragOver}
+                            onDragLeave={handleContentFieldDragLeave}
+                            onDrop={handleContentFieldDrop}
+                            onDragEnd={handleContentFieldDragEnd}
+                            isDragging={draggedContentField === i}
+                            isOver={overContentField === i}
                           />
                         ))}
 
@@ -556,7 +902,28 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
                 )}
 
                 {groups.map((g, i) => (
-                  <GroupCard key={g.id} group={g} onUpdate={ng => updateGroup(i, ng)} onRemove={() => removeGroup(i)} />
+                  <GroupCard
+                    key={g.id || String(i)}
+                    group={g}
+                    index={i}
+                    onUpdate={ng => updateGroup(i, ng)}
+                    onRemove={() => removeGroup(i)}
+                    onDragStartGroup={handleGroupDragStart}
+                    onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
+                    onDragLeaveGroup={handleGroupDragLeave}
+                    onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
+                    onDragEndGroup={handleGroupDragEnd}
+                    isDraggingGroup={draggedGroupIndex === i}
+                    isOverGroup={overGroupIndex === i}
+                    onFieldDragStart={handleFieldDragStart}
+                    onFieldDragOver={handleFieldDragOver}
+                    onFieldDragLeave={handleFieldDragLeave}
+                    onFieldDrop={handleFieldDrop}
+                    onFieldDragEnd={handleFieldDragEnd}
+                    draggedFieldInfo={draggedGroupField}
+                    overFieldInfo={overGroupField}
+                    onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
+                  />
                 ))}
               </div>
             )}

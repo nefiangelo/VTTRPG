@@ -8,13 +8,13 @@ interface Props {
   onClick?: () => void
 }
 
-const STATUS_LABEL: Record<Campaign['status'], string> = {
+export const STATUS_LABEL: Record<Campaign['status'], string> = {
   active: 'Ativa',
   paused: 'Pausada',
   finished: 'Finalizada',
 }
 
-const STATUS_COLOR: Record<Campaign['status'], string> = {
+export const STATUS_COLOR: Record<Campaign['status'], string> = {
   active: 'bg-green-600',
   paused: 'bg-yellow-600',
   finished: 'bg-neutral-500',
