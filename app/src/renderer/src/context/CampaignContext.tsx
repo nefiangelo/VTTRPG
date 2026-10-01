@@ -7,6 +7,7 @@ interface CampaignContextValue {
   systems: RpgSystem[]
   isLoading: boolean
   fetchMyCampaigns: () => Promise<void>
+  fetchSystems: () => Promise<void>
   createCampaign: (payload: CreateCampaignPayload) => Promise<string | null>
 }
 
@@ -26,15 +27,25 @@ export function CampaignProvider({ children }: { children: ReactNode }): React.J
     setIsLoading(false)
   }, [user])
 
+  const fetchSystems = useCallback(async () => {
+    try {
+      const result = await window.api.campaigns.getSystems()
+      setSystems(result)
+    } catch (err) {
+      console.error('Error fetching systems:', err)
+    }
+  }, [])
+
   // Load campaigns and RPG systems whenever the logged-in user changes
   useEffect(() => {
     if (!user) {
       setCampaigns([])
+      setSystems([])
       return
     }
     fetchMyCampaigns()
-    window.api.campaigns.getSystems().then(setSystems)
-  }, [user, fetchMyCampaigns])
+    fetchSystems()
+  }, [user, fetchMyCampaigns, fetchSystems])
 
   const createCampaign = useCallback(async (payload: CreateCampaignPayload): Promise<string | null> => {
     const result = await window.api.campaigns.create(payload)
@@ -45,7 +56,7 @@ export function CampaignProvider({ children }: { children: ReactNode }): React.J
   }, [])
 
   return (
-    <CampaignContext.Provider value={{ campaigns, systems, isLoading, fetchMyCampaigns, createCampaign }}>
+    <CampaignContext.Provider value={{ campaigns, systems, isLoading, fetchMyCampaigns, fetchSystems, createCampaign }}>
       {children}
     </CampaignContext.Provider>
   )

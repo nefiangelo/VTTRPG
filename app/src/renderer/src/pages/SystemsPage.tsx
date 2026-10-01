@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { useCampaigns } from '../context/CampaignContext'
 import type {
   RpgSystemFull,
   SystemStructure,
@@ -686,6 +687,7 @@ function SystemCard({ system, onEdit, onDelete, onView }: {
 /* ─── Page ───────────────────────────────────────────────────── */
 export default function SystemsPage(): React.JSX.Element {
   const { user } = useAuth()
+  const { fetchSystems } = useCampaigns()
   const navigate = useNavigate()
   const [systems, setSystems] = useState<RpgSystemFull[]>([])
   const [loading, setLoading] = useState(true)
@@ -697,8 +699,9 @@ export default function SystemsPage(): React.JSX.Element {
     setLoading(true)
     const data = await window.api.systems.getAll()
     setSystems(data)
+    fetchSystems()
     setLoading(false)
-  }, [])
+  }, [fetchSystems])
 
   useEffect(() => { load() }, [load])
 
