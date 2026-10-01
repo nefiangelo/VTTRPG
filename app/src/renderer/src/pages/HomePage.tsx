@@ -39,10 +39,9 @@ export default function HomePage(): React.JSX.Element {
           </section>
         ) : (
           <>
-            {campaigns.length > 0 && (
-              <section className='flex flex-wrap gap-10'>
-                <CampaignCard onClick={() => navigate('/new-campaign')} campaign={undefined} />
-
+            <section className='flex flex-wrap gap-10'>
+              <CampaignCard onClick={() => navigate('/new-campaign')} campaign={undefined} />
+              {campaigns.length > 0 && (
                 <div className='flex flex-wrap gap-5'>
                   {campaigns.map((c: Campaign) => (
                     <CampaignCard
@@ -51,8 +50,8 @@ export default function HomePage(): React.JSX.Element {
                     />
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+            </section>
           </>
         )}
       </main>

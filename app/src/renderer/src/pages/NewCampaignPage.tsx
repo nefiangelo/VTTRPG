@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
 import { useAuth } from '../context/AuthContext'
@@ -7,7 +7,11 @@ import { useCampaigns } from '../context/CampaignContext'
 export default function NewCampaignPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { createCampaign, systems } = useCampaigns()
+  const { createCampaign, systems, fetchSystems } = useCampaigns()
+
+  useEffect(() => {
+    fetchSystems()
+  }, [fetchSystems])
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -125,7 +129,7 @@ export default function NewCampaignPage(): React.JSX.Element {
                   <option value='' disabled>Selecione um sistema...</option>
                   {systems.map(s => (
                     <option key={s.id} value={s.id}>
-                      {s.name}{s.genre ? ` � ${s.genre}` : ''}
+                      {s.name}{s.genre ? ` | ${s.genre}` : ''}
                     </option>
                   ))}
                 </select>

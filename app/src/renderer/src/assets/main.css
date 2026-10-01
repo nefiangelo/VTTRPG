@@ -25,3 +25,37 @@ body,
   color: var(--color-vtt-light);
   /* to avoid window-level scrollbars */
 }
+
+/* ─── Customized Program Scrollbar (vtt-red) ─────────────────── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-vtt-red, #D32F2F) var(--color-vtt-dark, #1A1A1A);
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-vtt-dark, #1A1A1A);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-vtt-red, #D32F2F);
+  border-radius: 4px;
+  border: 2px solid var(--color-vtt-dark, #1A1A1A);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-vtt-light-red, #E34646);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: var(--color-vtt-dark-red, #961D1D);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--color-vtt-dark, #1A1A1A);
+}

@@ -4,6 +4,11 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { register, login } from './auth'
 import { createCampaign, getCampaignsByUser, getRpgSystems } from './campaign'
+import {
+  getRpgSystemsFull, getRpgSystemById, createRpgSystem, updateRpgSystem, deleteRpgSystem,
+  getSystemContent, createSystemContent, updateSystemContent, deleteSystemContent,
+} from './rpg_system'
+import type { CreateRpgSystemPayload, UpdateRpgSystemPayload, CreateContentPayload, UpdateContentPayload, ContentType } from './rpg_system'
 import type { CreateCampaignPayload } from './campaign'
 import { closeDb } from './db'
 
@@ -75,6 +80,19 @@ app.whenReady().then(() => {
   ipcMain.handle('campaign:getSystems', () =>
     getRpgSystems()
   )
+
+  // RPG Systems full CRUD
+  ipcMain.handle('system:getAll', () => getRpgSystemsFull())
+  ipcMain.handle('system:getById', (_e, id: number) => getRpgSystemById(id))
+  ipcMain.handle('system:create', (_e, payload: CreateRpgSystemPayload) => createRpgSystem(payload))
+  ipcMain.handle('system:update', (_e, payload: UpdateRpgSystemPayload) => updateRpgSystem(payload))
+  ipcMain.handle('system:delete', (_e, id: number) => deleteRpgSystem(id))
+
+  // System Content CRUD
+  ipcMain.handle('content:getBySystem', (_e, rpgSystemId: number, type?: ContentType) => getSystemContent(rpgSystemId, type))
+  ipcMain.handle('content:create', (_e, payload: CreateContentPayload) => createSystemContent(payload))
+  ipcMain.handle('content:update', (_e, payload: UpdateContentPayload) => updateSystemContent(payload))
+  ipcMain.handle('content:delete', (_e, id: number) => deleteSystemContent(id))
 
   createWindow()
 
