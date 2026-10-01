@@ -7,9 +7,11 @@ import type {
   SystemStructure,
   AttributeGroup,
   AttributeField,
+  ContentType,
   CreateRpgSystemPayload,
   UpdateRpgSystemPayload,
 } from '../../../preload/index.d'
+import { CONTENT_TYPE_LIST, DEFAULT_CONTENT_FIELDS } from '../utils/contentPresets'
 
 /* ─── Helpers ─────────────────────────────────────────────────── */
 function uid(): string {
@@ -26,7 +28,7 @@ const IconTrash = (): React.JSX.Element => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 )
 const IconEdit = (): React.JSX.Element => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
 )
 const IconDice = (): React.JSX.Element => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm8 8a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm-4-4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm-4 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm8-8a1 1 0 1 0 2 0 1 1 0 0 0-2 0z" /></svg>
@@ -53,27 +55,44 @@ function FieldRow({
       <input
         type="text"
         value={field.label}
-        onChange={e => onUpdate({ ...field, label: e.target.value })}
-        placeholder="Label (ex: Força)"
-        className="flex-1 bg-transparent border-b border-vtt-light-gray text-vtt-light text-sm
-                   placeholder:text-neutral-600 outline-none focus:border-vtt-red transition-colors py-0.5"
+        onChange={e => {
+          const newLabel = e.target.value
+          const oldSlug = field.label.trim().replace(/\s+/g, '_').toLowerCase()
+          const shouldAutoKey = !field.key || field.key.startsWith('campo_') || field.key === oldSlug
+          onUpdate({
+            ...field,
+            label: newLabel,
+            key: shouldAutoKey
+              ? newLabel
+                  .normalize('NFD')
+                  .replace(/[\u0300-\u036f]/g, '')
+                  .replace(/[^a-zA-Z0-9_]/g, '_')
+                  .toLowerCase()
+              : field.key,
+          })
+        }}
+        placeholder="Nome do campo (ex: Dado de Vida)"
+        className="flex-1 min-w-[120px] bg-transparent border-b border-vtt-light-gray text-vtt-light text-sm
+                   placeholder:text-neutral-600 outline-none focus:border-vtt-green transition-colors py-0.5"
       />
       <input
         type="text"
         value={field.key}
         onChange={e => onUpdate({ ...field, key: e.target.value.replace(/\s+/g, '_').toLowerCase() })}
-        placeholder="chave"
+        placeholder="chave (ex: hit_die)"
         className="w-28 bg-transparent border-b border-vtt-light-gray text-neutral-400 text-xs
-                   placeholder:text-neutral-600 outline-none focus:border-vtt-red transition-colors py-0.5 font-mono"
+                   placeholder:text-neutral-600 outline-none focus:border-vtt-green transition-colors py-0.5 font-mono"
       />
       <select
         value={field.type}
         onChange={e => onUpdate({ ...field, type: e.target.value as AttributeField['type'] })}
         className="bg-vtt-dark border border-vtt-light-gray rounded text-vtt-light text-xs py-1 px-2
-                   outline-none focus:border-vtt-red transition-colors cursor-pointer"
+                   outline-none focus:border-vtt-green transition-colors cursor-pointer"
       >
-        <option value="number">Número</option>
         <option value="text">Texto</option>
+        <option value="number">Número</option>
+        <option value="textarea">Área de Texto</option>
+        <option value="list">Lista</option>
         <option value="checkbox">Checkbox</option>
       </select>
       {field.type === 'number' && (
@@ -83,14 +102,23 @@ function FieldRow({
           onChange={e => onUpdate({ ...field, max: e.target.value ? Number(e.target.value) : undefined })}
           placeholder="Max"
           min={1}
-          className="w-16 bg-transparent border-b border-vtt-light-gray text-neutral-400 text-xs
-                     placeholder:text-neutral-600 outline-none focus:border-vtt-red transition-colors py-0.5 text-center"
+          className="w-14 bg-transparent border-b border-vtt-light-gray text-neutral-400 text-xs
+                     placeholder:text-neutral-600 outline-none focus:border-vtt-green transition-colors py-0.5 text-center"
         />
       )}
+      <input
+        type="text"
+        value={field.placeholder ?? ''}
+        onChange={e => onUpdate({ ...field, placeholder: e.target.value })}
+        placeholder="Dica / Placeholder"
+        className="w-32 bg-transparent border-b border-vtt-light-gray text-neutral-400 text-xs
+                   placeholder:text-neutral-600 outline-none focus:border-vtt-green transition-colors py-0.5"
+      />
       <button
         type="button"
         onClick={onRemove}
-        className="text-neutral-600 hover:text-vtt-red transition-colors opacity-0 group-hover/field:opacity-100 cursor-pointer"
+        title="Excluir campo"
+        className="text-neutral-600 hover:text-vtt-red transition-colors opacity-0 group-hover/field:opacity-100 cursor-pointer p-1"
       >
         <IconTrash />
       </button>
@@ -136,7 +164,7 @@ function GroupCard({
           placeholder="Nome do grupo (ex: Atributos Principais)"
           className="flex-1 bg-transparent text-vtt-light font-semibold text-sm
                      placeholder:text-neutral-500 outline-none border-b border-transparent
-                     focus:border-vtt-red transition-colors"
+                     focus:border-vtt-green transition-colors"
         />
         <button
           type="button"
@@ -186,6 +214,11 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [groups, setGroups] = useState<AttributeGroup[]>(
     initial?.structure?.attributeGroups ?? []
   )
+  const [contentFields, setContentFields] = useState<Partial<Record<ContentType, AttributeField[]>>>(() => {
+    return initial?.structure?.contentFields ?? {}
+  })
+  const [activeBuilderTab, setActiveBuilderTab] = useState<'content' | 'character'>('content')
+  const [selectedContentType, setSelectedContentType] = useState<ContentType>('class')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -201,12 +234,67 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     setGroups(prev => prev.filter((_, idx) => idx !== i))
   }
 
+  const addContentField = (): void => {
+    const newField: AttributeField = {
+      key: `campo_${uid().slice(0, 4)}`,
+      label: '',
+      type: 'text',
+      placeholder: '',
+    }
+    setContentFields(prev => ({
+      ...prev,
+      [selectedContentType]: [...(prev[selectedContentType] ?? []), newField],
+    }))
+  }
+
+  const updateContentField = (idx: number, updated: AttributeField): void => {
+    setContentFields(prev => {
+      const list = [...(prev[selectedContentType] ?? [])]
+      list[idx] = updated
+      return { ...prev, [selectedContentType]: list }
+    })
+  }
+
+  const removeContentField = (idx: number): void => {
+    setContentFields(prev => {
+      const list = (prev[selectedContentType] ?? []).filter((_, i) => i !== idx)
+      return { ...prev, [selectedContentType]: list }
+    })
+  }
+
+  const loadDefaultPreset = (ct: ContentType): void => {
+    const preset = DEFAULT_CONTENT_FIELDS[ct] ?? []
+    setContentFields(prev => ({
+      ...prev,
+      [ct]: [...preset],
+    }))
+  }
+
+  const loadAllPresets = (): void => {
+    setContentFields(prev => ({
+      ...DEFAULT_CONTENT_FIELDS,
+      ...prev,
+    }))
+  }
+
+  const clearContentFields = (ct: ContentType): void => {
+    setContentFields(prev => {
+      const next = { ...prev }
+      next[ct] = []
+      return next
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
-    const structure: SystemStructure = { attributeGroups: groups }
+    const structure: SystemStructure = {
+      ...(initial?.structure ?? {}),
+      attributeGroups: groups,
+      contentFields,
+    }
 
     if (initial) {
       const payload: UpdateRpgSystemPayload = {
@@ -235,7 +323,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-2xl max-h-[90vh] overflow-y-auto bg-vtt-dark border border-vtt-dark-gray
+        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-vtt-dark border border-vtt-dark-gray
                    rounded-2xl flex flex-col shadow-2xl"
       >
         {/* Header */}
@@ -259,14 +347,14 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
               <input type="text" value={name} onChange={e => setName(e.target.value)} required
                 placeholder="ex: D&D 5e"
                 className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-red transition-colors" />
+                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
             </label>
             <label className="flex-1 flex flex-col gap-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
               <input type="text" value={version} onChange={e => setVersion(e.target.value)}
                 placeholder="ex: 5.1"
                 className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-red transition-colors" />
+                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
             </label>
           </div>
 
@@ -275,7 +363,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
               <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
               <select value={genre} onChange={e => setGenre(e.target.value)}
                 className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
-                           text-sm outline-none focus:border-vtt-red transition-colors cursor-pointer">
+                           text-sm outline-none focus:border-vtt-green transition-colors cursor-pointer">
                 <option value="">Selecionar...</option>
                 {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
               </select>
@@ -285,31 +373,192 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
               <input type="text" value={description} onChange={e => setDescription(e.target.value)}
                 placeholder="Breve descrição do sistema..."
                 className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-red transition-colors" />
+                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
             </label>
           </div>
 
-          {/* Attribute builder */}
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest">Grupos de Atributos</h3>
-              <button type="button" onClick={addGroup}
-                className="flex items-center gap-1.5 text-xs font-semibold text-vtt-green hover:text-vtt-light-green
-                           transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-green/40
-                           hover:border-vtt-green bg-vtt-dark-green/20 hover:bg-vtt-dark-green/40">
-                <IconPlus /> Novo Grupo
-              </button>
+          {/* Builder section tabs */}
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-2 flex-wrap gap-2">
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveBuilderTab('content')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    activeBuilderTab === 'content'
+                      ? 'bg-vtt-dark-green/40 text-vtt-light-green border border-vtt-green/40'
+                      : 'text-neutral-400 hover:text-vtt-light bg-vtt-dark-gray/30'
+                  }`}
+                >
+                  <span>📦 Campos por Tipo de Conteúdo</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                    {Object.values(contentFields).reduce((acc, f) => acc + (f?.length ?? 0), 0)}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveBuilderTab('character')}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                    activeBuilderTab === 'character'
+                      ? 'bg-vtt-dark-green/40 text-vtt-light-green border border-vtt-green/40'
+                      : 'text-neutral-400 hover:text-vtt-light bg-vtt-dark-gray/30'
+                  }`}
+                >
+                  <span>📑 Ficha de Personagem</span>
+                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                    {groups.length}
+                  </span>
+                </button>
+              </div>
+
+              {activeBuilderTab === 'content' && (
+                <button
+                  type="button"
+                  onClick={loadAllPresets}
+                  className="flex items-center gap-1.5 text-xs text-vtt-light-green hover:underline cursor-pointer"
+                  title="Preencher todos os tipos de conteúdo com modelos padrão de D&D"
+                >
+                  ✨ Carregar Todos os Padrões D&D
+                </button>
+              )}
             </div>
 
-            {groups.length === 0 && (
-              <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
-                Nenhum grupo ainda. Clique em "Novo Grupo" para começar a definir os atributos do sistema.
+            {/* TAB: CONTENT FIELDS BY TYPE */}
+            {activeBuilderTab === 'content' && (
+              <div className="flex flex-col gap-4">
+                {/* Horizontal Content Types Selector */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
+                  {CONTENT_TYPE_LIST.map(ct => {
+                    const count = (contentFields[ct.value] ?? []).length
+                    const isSelected = selectedContentType === ct.value
+                    return (
+                      <button
+                        key={ct.value}
+                        type="button"
+                        onClick={() => setSelectedContentType(ct.value)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border ${
+                          isSelected
+                            ? 'bg-vtt-green text-white border-vtt-green shadow-xs'
+                            : 'bg-vtt-dark-gray/40 border-vtt-dark-gray text-neutral-400 hover:text-vtt-light hover:bg-vtt-dark-gray'
+                        }`}
+                      >
+                        <span>{ct.emoji}</span>
+                        <span>{ct.label}</span>
+                        {count > 0 && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                              isSelected ? 'bg-black/30 text-white' : 'bg-vtt-dark text-neutral-400'
+                            }`}
+                          >
+                            {count}
+                          </span>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Selected Type Card */}
+                {(() => {
+                  const meta = CONTENT_TYPE_LIST.find(c => c.value === selectedContentType)!
+                  const currentFields = contentFields[selectedContentType] ?? []
+                  return (
+                    <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden flex flex-col gap-3 p-4">
+                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-vtt-dark-gray/60">
+                        <div>
+                          <h4 className="text-sm font-bold text-vtt-light flex items-center gap-2">
+                            <span>{meta.emoji}</span>
+                            <span>Campos Fixos de {meta.label}</span>
+                          </h4>
+                          <p className="text-xs text-neutral-400 mt-0.5">
+                            {meta.description}. Estes campos aparecerão automaticamente ao cadastrar um(a) {meta.singularLabel.toLowerCase()}.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => loadDefaultPreset(selectedContentType)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green hover:bg-vtt-dark-green/60 transition-colors cursor-pointer"
+                          >
+                            ✨ Carregar Padrão D&D
+                          </button>
+                          {currentFields.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => clearContentFields(selectedContentType)}
+                              className="text-xs text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer px-2 py-1"
+                            >
+                              Limpar
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Field list for this type */}
+                      <div className="flex flex-col gap-2">
+                        {currentFields.length === 0 && (
+                          <div className="text-center py-6 text-neutral-500 text-xs border border-dashed border-vtt-dark-gray rounded-lg flex flex-col items-center gap-2">
+                            <p>Nenhum campo fixo definido para {meta.label} ainda.</p>
+                            <button
+                              type="button"
+                              onClick={() => loadDefaultPreset(selectedContentType)}
+                              className="text-xs text-vtt-light-green underline cursor-pointer"
+                            >
+                              Clique aqui para carregar os campos padrão de D&D
+                            </button>
+                          </div>
+                        )}
+                        {currentFields.map((f, i) => (
+                          <FieldRow
+                            key={f.key + i}
+                            field={f}
+                            onUpdate={nf => updateContentField(i, nf)}
+                            onRemove={() => removeContentField(i)}
+                          />
+                        ))}
+
+                        <button
+                          type="button"
+                          onClick={addContentField}
+                          className="mt-1 flex items-center gap-1.5 text-xs text-vtt-green hover:text-vtt-light-green
+                                     transition-colors font-medium cursor-pointer w-fit"
+                        >
+                          <IconPlus /> Adicionar campo em {meta.singularLabel}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )}
 
-            {groups.map((g, i) => (
-              <GroupCard key={g.id} group={g} onUpdate={ng => updateGroup(i, ng)} onRemove={() => removeGroup(i)} />
-            ))}
+            {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
+            {activeBuilderTab === 'character' && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest">Grupos de Atributos da Ficha</h3>
+                    <p className="text-xs text-neutral-400 mt-0.5">Atributos principais do personagem (ex: Força, Destreza, Constituição).</p>
+                  </div>
+                  <button type="button" onClick={addGroup}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-vtt-green hover:text-vtt-light-green
+                               transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-green/40
+                               hover:border-vtt-green bg-vtt-dark-green/20 hover:bg-vtt-dark-green/40">
+                    <IconPlus /> Novo Grupo
+                  </button>
+                </div>
+
+                {groups.length === 0 && (
+                  <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
+                    Nenhum grupo ainda. Clique em "Novo Grupo" para começar a definir os atributos da ficha.
+                  </div>
+                )}
+
+                {groups.map((g, i) => (
+                  <GroupCard key={g.id} group={g} onUpdate={ng => updateGroup(i, ng)} onRemove={() => removeGroup(i)} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 

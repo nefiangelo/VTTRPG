@@ -50,8 +50,9 @@ export interface RpgSystem {
 export interface AttributeField {
   key: string
   label: string
-  type: 'number' | 'text' | 'checkbox'
+  type: 'number' | 'text' | 'checkbox' | 'textarea' | 'list'
   max?: number
+  placeholder?: string
 }
 
 export interface AttributeGroup {
@@ -61,7 +62,9 @@ export interface AttributeGroup {
 }
 
 export interface SystemStructure {
-  attributeGroups: AttributeGroup[]
+  attributeGroups?: AttributeGroup[]
+  contentFields?: Partial<Record<ContentType, AttributeField[]>>
+  [key: string]: unknown
 }
 
 export interface RpgSystemFull {

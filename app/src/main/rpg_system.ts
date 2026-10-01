@@ -1,12 +1,13 @@
-﻿import { getDb } from './db'
+import { getDb } from './db'
 
 /* ─── Types ──────────────────────────────────────────────────── */
 
 export interface AttributeField {
   key: string
   label: string
-  type: 'number' | 'text' | 'checkbox'
+  type: 'number' | 'text' | 'checkbox' | 'textarea' | 'list'
   max?: number
+  placeholder?: string
 }
 
 export interface AttributeGroup {
@@ -16,7 +17,9 @@ export interface AttributeGroup {
 }
 
 export interface SystemStructure {
-  attributeGroups: AttributeGroup[]
+  attributeGroups?: AttributeGroup[]
+  contentFields?: Partial<Record<ContentType, AttributeField[]>>
+  [key: string]: unknown
 }
 
 export interface RpgSystemFull {
@@ -96,8 +99,17 @@ function slugify(text: string): string {
 }
 
 function parseStructure(raw: string | null): SystemStructure {
-  try { return raw ? (JSON.parse(raw) as SystemStructure) : { attributeGroups: [] } }
-  catch { return { attributeGroups: [] } }
+  try {
+    if (!raw) return { attributeGroups: [], contentFields: {} }
+    const parsed = JSON.parse(raw) as SystemStructure
+    return {
+      attributeGroups: parsed.attributeGroups ?? [],
+      contentFields: parsed.contentFields ?? {},
+      ...parsed,
+    }
+  } catch {
+    return { attributeGroups: [], contentFields: {} }
+  }
 }
 
 function parseData(raw: string | null): Record<string, unknown> {
