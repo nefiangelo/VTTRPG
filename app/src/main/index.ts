@@ -12,9 +12,10 @@ import {
   startSession,
   endSession,
   reopenSession,
-  deleteSession
+  deleteSession,
+  importSessionBundle
 } from './session'
-import type { CreateSessionPayload, UpdateSessionPayload } from './session'
+import type { CreateSessionPayload, UpdateSessionPayload, ImportBundlePayload } from './session'
 import {
   getRpgSystemsFull, getRpgSystemById, createRpgSystem, updateRpgSystem, deleteRpgSystem,
   getSystemContent, createSystemContent, updateSystemContent, deleteSystemContent,
@@ -128,6 +129,9 @@ app.whenReady().then(() => {
   )
   ipcMain.handle('session:delete', (_e, id: number) =>
     deleteSession(id)
+  )
+  ipcMain.handle('session:importBundle', (_e, payload: ImportBundlePayload) =>
+    importSessionBundle(payload)
   )
 
   // RPG Systems full CRUD

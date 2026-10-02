@@ -152,7 +152,23 @@ export default function GameSessionPage(): React.JSX.Element {
           }
         }
 
+        const isOwner = campaignData?.owner_id === user?.id
+        const isPlayer = locationState?.isPlayer ?? !isOwner
+
+        if (isPlayer) {
+          setIsPlayerMode(true)
+          const targetUrl = locationState?.serverUrl || sessionData.server_url || 'http://localhost:3001'
+          const targetCode = locationState?.accessCode || sessionData.access_code || ''
+          setServerUrl(targetUrl)
+          setAccessCode(targetCode)
+
+          addLog(`Iniciando conexão como Jogador com o servidor em ${targetUrl}...`, 'info')
+          connectSocket(targetUrl, targetCode, 'player')
+          return
+        }
+
         // Inicia o servidor Node.js Express + Socket.io como Mestre
+        setIsPlayerMode(false)
         addLog('Iniciando servidor Node.js Express e Socket.io para a sessão...', 'info')
         const startResult = await window.api.server.start(sessionId)
 
@@ -370,10 +386,8 @@ export default function GameSessionPage(): React.JSX.Element {
       socketRef.current = null
     }
 
-    if (isPlayerMode) {
-      navigate('/join-campaign')
-    } else if (campaign?.id) {
-      navigate(`/campaigns/${campaign.id}/sessions`)
+    if (campaign?.id || session?.campaign_id) {
+      navigate(`/campaigns/${campaign?.id || session?.campaign_id}/sessions`)
     } else {
       navigate('/home')
     }

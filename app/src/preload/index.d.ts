@@ -71,6 +71,7 @@ export interface Session {
   ended_at: string | null
   notes: string | null
   access_code?: string | null
+  server_url?: string | null
   created_at: string
 }
 
@@ -225,12 +226,25 @@ export interface SessionBundleResult {
     started_at: string | null
     notes: string | null
     access_code: string
+    server_url?: string | null
   }
+  allSessions?: Array<{
+    id: number
+    title: string | null
+    status: string
+    started_at: string | null
+    notes: string | null
+    access_code?: string | null
+    server_url?: string | null
+  }>
   campaign: {
     id: number
     title: string
     description: string | null
+    status?: string
+    rpg_system_id?: number
     owner_username?: string
+    members?: CampaignMember[]
   }
   system: RpgSystemFull | null
   content: SystemContentEntry[]
@@ -239,6 +253,26 @@ export interface SessionBundleResult {
     attributeGroupsCount: number
   }
   serverTime?: string
+  error?: string
+}
+
+export interface ImportBundlePayload {
+  bundle: SessionBundleResult
+  userId: number
+  serverUrl?: string
+}
+
+export interface ImportBundleResult {
+  success: boolean
+  campaignId?: number
+  sessionId?: number
+  systemId?: number
+  stats?: {
+    importedSystem: boolean
+    importedContentCount: number
+    importedCampaign: boolean
+    importedSessionsCount: number
+  }
   error?: string
 }
 
@@ -264,6 +298,7 @@ interface API {
     end: (id: number, notes?: string) => Promise<SessionResult>
     reopen: (id: number) => Promise<SessionResult>
     delete: (id: number) => Promise<{ success: boolean; error?: string }>
+    importBundle: (payload: ImportBundlePayload) => Promise<ImportBundleResult>
   }
   systems: {
     getAll: () => Promise<RpgSystemFull[]>

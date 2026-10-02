@@ -2,11 +2,13 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
 import { useAuth } from '../context/AuthContext'
+import { useCampaigns } from '../context/CampaignContext'
 import type { SessionBundleResult } from '../../../preload/index.d'
 
 export default function JoinCampaignPage(): React.JSX.Element {
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { fetchMyCampaigns, fetchSystems } = useCampaigns()
 
   const [inputCode, setInputCode] = useState('')
   const [serverUrl, setServerUrl] = useState('http://localhost:3001')
@@ -105,15 +107,19 @@ export default function JoinCampaignPage(): React.JSX.Element {
     setStepStatus('Conectando ao servidor do Mestre...')
 
     try {
-      // ETAPA 1: Conexão e Download via Express HTTP
-      await new Promise(r => setTimeout(r, 400))
-      setCurrentStep(2)
-      setStepStatus('Baixando pacote da sessão (Regras do Sistema, Fichas e Catálogo de Conteúdo)...')
+      // ETAPA 1: Conexão HTTP com o Servidor do Mestre
+      await new Promise(r => setTimeout(r, 300))
+      setCurrentStep(1)
+      setStepStatus('Conectando ao servidor do Mestre...')
 
-      const response = await fetch(`${cleanServer}/api/session/bundle?code=${encodeURIComponent(cleanCode)}`, {
+      const playerUsername = user?.username ? encodeURIComponent(user.username) : ''
+      const urlWithUser = `${cleanServer}/api/session/bundle?code=${encodeURIComponent(cleanCode)}${playerUsername ? `&username=${playerUsername}` : ''}`
+
+      const response = await fetch(urlWithUser, {
         method: 'GET',
         headers: {
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          ...(user?.username ? { 'x-player-username': user.username } : {})
         }
       })
 
@@ -122,20 +128,42 @@ export default function JoinCampaignPage(): React.JSX.Element {
         throw new Error(errJson?.error || `Servidor respondeu com status ${response.status}. Verifique o código e o endereço.`)
       }
 
+      // ETAPA 2: Download do Pacote
+      setCurrentStep(2)
+      setStepStatus('Baixando pacote da sessão (Regras do Sistema, Fichas e Catálogo de Conteúdo)...')
+
       const bundle: SessionBundleResult = await response.json()
 
       if (!bundle.success) {
         throw new Error(bundle.error || 'Código de sessão inválido ou sessão não encontrada.')
       }
 
-      // ETAPA 2: Conteúdo baixado e verificado
+      // ETAPA 3: Sincronização e Preenchimento das Tabelas Locais (SQLite)
       setCurrentStep(3)
-      setStepStatus('Conteúdo baixado com sucesso! Validando estrutura de regras...')
-      await new Promise(r => setTimeout(r, 400))
+      setStepStatus('Preenchendo banco local: gravando sistema RPG, catálogo, campanha e sessões...')
 
+      if (user?.id) {
+        const importRes = await window.api.sessions.importBundle({
+          bundle,
+          userId: user.id,
+          serverUrl: cleanServer
+        })
+
+        if (!importRes.success) {
+          throw new Error(importRes.error || 'Falha ao sincronizar os dados locais no banco de dados.')
+        }
+
+        // Atualiza contextos globais de campanhas e sistemas para refletir na navegação
+        await Promise.all([
+          fetchMyCampaigns(),
+          fetchSystems()
+        ])
+      }
+
+      // ETAPA 4: Concluído
       setDownloadedBundle(bundle)
       setCurrentStep(4)
-      setStepStatus('Pronto para entrar na sala em tempo real!')
+      setStepStatus('✓ Conteúdo baixado e tabelas sincronizadas! Pronto para entrar na sala!')
     } catch (err: unknown) {
       console.error('Erro ao acessar sessão:', err)
       const msg = err instanceof Error ? err.message : String(err)
@@ -348,7 +376,7 @@ export default function JoinCampaignPage(): React.JSX.Element {
                     {currentStep > 1 ? '✓' : '1'}
                   </span>
                   <div>
-                    <h3 className='text-sm font-semibold'>Conexão HTTP com Node.js Express</h3>
+                    <h3 className='text-sm font-semibold'>Conexão HTTP com Servidor</h3>
                     <p className='text-xs text-neutral-400 mt-0.5'>
                       Localiza o servidor do mestre e valida o código de acesso.
                     </p>
@@ -365,26 +393,43 @@ export default function JoinCampaignPage(): React.JSX.Element {
                     {currentStep > 2 ? '✓' : '2'}
                   </span>
                   <div>
-                    <h3 className='text-sm font-semibold'>Download do Sistema e Catálogo</h3>
+                    <h3 className='text-sm font-semibold'>Download do Pacote da Sessão</h3>
                     <p className='text-xs text-neutral-400 mt-0.5'>
-                      Baixa regras, atributos, classes, magias e itens da campanha para o jogador.
+                      Recebe as regras do sistema, catálogo de classes/magias/itens e dados da campanha.
                     </p>
                   </div>
                 </div>
 
                 {/* Passo 3 */}
                 <div className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
+                  currentStep >= 3 ? 'bg-vtt-dark-gray/80 border-emerald-500/50 text-white' : 'bg-vtt-dark-gray/30 border-vtt-light-gray/20 text-neutral-500'
+                }`}>
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
+                    currentStep > 3 ? 'bg-emerald-600 text-white' : currentStep === 3 ? 'bg-amber-600 text-white animate-pulse' : 'bg-neutral-800 text-neutral-400'
+                  }`}>
+                    {currentStep > 3 ? '✓' : '3'}
+                  </span>
+                  <div>
+                    <h3 className='text-sm font-semibold'>Sincronização no SQLite Local</h3>
+                    <p className='text-xs text-neutral-400 mt-0.5'>
+                      Grava o sistema RPG, catálogo, campanha e sessões nas tabelas locais do seu usuário.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Passo 4 */}
+                <div className={`flex items-start gap-3 p-3 rounded-xl border transition-all ${
                   currentStep >= 4 ? 'bg-vtt-dark-gray/80 border-emerald-500/50 text-white' : 'bg-vtt-dark-gray/30 border-vtt-light-gray/20 text-neutral-500'
                 }`}>
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0 mt-0.5 ${
                     currentStep >= 4 ? 'bg-emerald-600 text-white' : 'bg-neutral-800 text-neutral-400'
                   }`}>
-                    {currentStep >= 4 ? '✓' : '3'}
+                    {currentStep >= 4 ? '✓' : '4'}
                   </span>
                   <div>
-                    <h3 className='text-sm font-semibold'>Estabelecer Conexão Socket.io</h3>
+                    <h3 className='text-sm font-semibold'>Pronto para Conexão em Tempo Real</h3>
                     <p className='text-xs text-neutral-400 mt-0.5'>
-                      Canal de comunicação bidirecional em tempo real com o Mestre e demais jogadores.
+                      Comunicação bidirecional via Socket.io com o Mestre e demais jogadores.
                     </p>
                   </div>
                 </div>
@@ -439,6 +484,15 @@ export default function JoinCampaignPage(): React.JSX.Element {
                       {downloadedBundle.stats.attributeGroupsCount} grupos de atributos
                     </span>
                   </div>
+                </div>
+
+                {/* Confirmação de Gravação Local */}
+                <div className='p-2.5 rounded-lg bg-emerald-950/60 border border-emerald-800/80 text-[11px] text-emerald-300 flex items-center justify-between'>
+                  <span className='flex items-center gap-1.5'>
+                    <span>💾</span>
+                    <span>Tabelas locais sincronizadas: Sistema, Catálogo, Campanha e Sessões gravados!</span>
+                  </span>
+                  <span className='font-mono font-bold text-white'>SQLite OK</span>
                 </div>
 
                 {/* Botão de Entrar na Sala */}

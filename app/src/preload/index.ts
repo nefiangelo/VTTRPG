@@ -39,6 +39,8 @@ const api = {
       ipcRenderer.invoke('session:reopen', id),
     delete: (id: number) =>
       ipcRenderer.invoke('session:delete', id),
+    importBundle: (payload: { bundle: unknown; userId: number; serverUrl?: string }) =>
+      ipcRenderer.invoke('session:importBundle', payload),
   },
 
   systems: {

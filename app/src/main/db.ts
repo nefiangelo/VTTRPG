@@ -173,6 +173,12 @@ function runMigrations(db: Database.Database): void {
     // Column already exists
   }
 
+  try {
+    db.exec(`ALTER TABLE sessions ADD COLUMN server_url TEXT;`)
+  } catch {
+    // Column already exists
+  }
+
   // ── Session Messages ───────────────────────────────────────────────────────
   // One row per chat message. user_id = NULL for system/server events.
   // type 'roll' stores content as JSON: { expression, result, rolls[] }

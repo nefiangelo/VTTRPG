@@ -9,6 +9,7 @@ export interface Session {
   ended_at: string | null
   notes: string | null
   access_code?: string | null
+  server_url?: string | null
   created_at: string
 }
 
@@ -215,3 +216,381 @@ export function getSessionByCode(code: string): Session | null {
   const session = db.prepare('SELECT * FROM sessions WHERE UPPER(access_code) = ?').get(clean) as Session | undefined
   return session ?? null
 }
+
+export interface SessionBundleData {
+  session: {
+    id: number
+    title: string | null
+    status: string
+    started_at: string | null
+    notes: string | null
+    access_code: string
+    server_url?: string | null
+  }
+  allSessions?: Array<{
+    id: number
+    title: string | null
+    status: string
+    started_at: string | null
+    notes: string | null
+    access_code?: string | null
+    server_url?: string | null
+  }>
+  campaign: {
+    id: number
+    title: string
+    description: string | null
+    status?: string
+    rpg_system_id?: number
+    owner_username?: string
+    members?: Array<{ id?: number; user_id?: number; username: string; role: string }>
+  }
+  system: {
+    id: number
+    name: string
+    slug: string
+    genre?: string | null
+    version?: string | null
+    description?: string | null
+    structure?: unknown
+  } | null
+  content: Array<{
+    id?: number
+    rpg_system_id?: number
+    type: string
+    name: string
+    data: Record<string, unknown>
+  }>
+  stats?: {
+    totalContentItems: number
+    attributeGroupsCount: number
+  }
+}
+
+export interface ImportBundlePayload {
+  bundle: SessionBundleData
+  userId: number
+  serverUrl?: string
+}
+
+export interface ImportBundleResult {
+  success: boolean
+  campaignId?: number
+  sessionId?: number
+  systemId?: number
+  stats?: {
+    importedSystem: boolean
+    importedContentCount: number
+    importedCampaign: boolean
+    importedSessionsCount: number
+  }
+  error?: string
+}
+
+/**
+ * Importa o pacote de sessão baixado pelo jogador para o SQLite local,
+ * preenchendo as tabelas de sistemas (rpg_systems, system_content), campanhas (campaigns, campaign_members)
+ * e sessões (sessions).
+ */
+export function importSessionBundle(payload: ImportBundlePayload): ImportBundleResult {
+  const db = getDb()
+  const { bundle, userId, serverUrl } = payload
+
+  if (!bundle || !bundle.session || !bundle.campaign) {
+    return { success: false, error: 'Pacote de sessão inválido ou incompleto.' }
+  }
+
+  try {
+    const importTransaction = db.transaction(() => {
+      // 1. RPG System (rpg_systems)
+      let localSystemId: number | null = null
+      if (bundle.system) {
+        const sys = bundle.system
+        const slug = sys.slug?.trim() || sys.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+        const structureJson = JSON.stringify(sys.structure ?? { attributeGroups: [] })
+
+        const existingSystem = db
+          .prepare('SELECT id FROM rpg_systems WHERE slug = ? OR name = ?')
+          .get(slug, sys.name) as { id: number } | undefined
+
+        if (existingSystem) {
+          db.prepare(`
+            UPDATE rpg_systems
+            SET name = ?,
+                slug = ?,
+                version = ?,
+                genre = ?,
+                description = ?,
+                structure = ?,
+                updated_at = datetime('now')
+            WHERE id = ?
+          `).run(
+            sys.name,
+            slug,
+            sys.version || null,
+            sys.genre || null,
+            sys.description || null,
+            structureJson,
+            existingSystem.id
+          )
+          localSystemId = existingSystem.id
+        } else {
+          const idTaken = db.prepare('SELECT id FROM rpg_systems WHERE id = ?').get(sys.id)
+          if (!idTaken && sys.id) {
+            db.prepare(`
+              INSERT INTO rpg_systems (id, name, slug, version, genre, description, structure, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).run(
+              sys.id,
+              sys.name,
+              slug,
+              sys.version || null,
+              sys.genre || null,
+              sys.description || null,
+              structureJson
+            )
+            localSystemId = sys.id
+          } else {
+            const info = db.prepare(`
+              INSERT INTO rpg_systems (name, slug, version, genre, description, structure, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            `).run(
+              sys.name,
+              slug,
+              sys.version || null,
+              sys.genre || null,
+              sys.description || null,
+              structureJson
+            )
+            localSystemId = Number(info.lastInsertRowid)
+          }
+        }
+      }
+
+      // 2. System Content (system_content)
+      let contentCount = 0
+      if (localSystemId && Array.isArray(bundle.content)) {
+        const selectContent = db.prepare(
+          'SELECT id FROM system_content WHERE rpg_system_id = ? AND type = ? AND name = ?'
+        )
+        const updateContent = db.prepare('UPDATE system_content SET data = ? WHERE id = ?')
+        const insertContent = db.prepare(`
+          INSERT INTO system_content (rpg_system_id, homebrew_id, type, name, data, created_at)
+          VALUES (?, NULL, ?, ?, ?, datetime('now'))
+        `)
+
+        for (const item of bundle.content) {
+          if (!item.name || !item.type) continue
+          const dataJson = typeof item.data === 'string' ? item.data : JSON.stringify(item.data ?? {})
+          const existing = selectContent.get(localSystemId, item.type, item.name) as
+            | { id: number }
+            | undefined
+          if (existing) {
+            updateContent.run(dataJson, existing.id)
+          } else {
+            insertContent.run(localSystemId, item.type, item.name, dataJson)
+          }
+          contentCount++
+        }
+      }
+
+      // 3. Campaign Owner (users)
+      let localOwnerId: number
+      const ownerUsername = bundle.campaign.owner_username?.trim() || 'Mestre'
+      const existingUser = db
+        .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE')
+        .get(ownerUsername) as { id: number } | undefined
+      if (existingUser) {
+        localOwnerId = existingUser.id
+      } else {
+        const info = db
+          .prepare(`
+            INSERT INTO users (username, password, created_at)
+            VALUES (?, 'remote_gm_placeholder', datetime('now'))
+          `)
+          .run(ownerUsername)
+        localOwnerId = Number(info.lastInsertRowid)
+      }
+
+      // 4. Campaign (campaigns)
+      let localCampaignId: number
+      const camp = bundle.campaign
+      const campTitle = camp.title?.trim() || 'Campanha Importada'
+      const campDesc = camp.description || null
+      const campStatus = camp.status || 'active'
+      const targetSystemId = localSystemId || camp.rpg_system_id || 1
+
+      // Ensure valid system id exists for foreign key
+      let validSystemId = targetSystemId
+      const sysCheck = db.prepare('SELECT id FROM rpg_systems WHERE id = ?').get(validSystemId)
+      if (!sysCheck) {
+        const anySys = db.prepare('SELECT id FROM rpg_systems LIMIT 1').get() as
+          | { id: number }
+          | undefined
+        if (anySys) {
+          validSystemId = anySys.id
+        } else {
+          const fallbackSys = db
+            .prepare(`
+              INSERT INTO rpg_systems (name, slug, structure, created_at, updated_at)
+              VALUES ('Sistema RPG', 'sistema-rpg', '{}', datetime('now'), datetime('now'))
+            `)
+            .run()
+          validSystemId = Number(fallbackSys.lastInsertRowid)
+        }
+      }
+
+      const existingCampaign = db
+        .prepare('SELECT id FROM campaigns WHERE id = ?')
+        .get(camp.id) as { id: number } | undefined
+
+      if (existingCampaign) {
+        db.prepare(`
+          UPDATE campaigns
+          SET title = ?,
+              description = ?,
+              status = ?,
+              rpg_system_id = ?,
+              updated_at = datetime('now')
+          WHERE id = ?
+        `).run(campTitle, campDesc, campStatus, validSystemId, existingCampaign.id)
+        localCampaignId = existingCampaign.id
+      } else {
+        const idTaken = db.prepare('SELECT id FROM campaigns WHERE id = ?').get(camp.id)
+        if (!idTaken && camp.id) {
+          db.prepare(`
+            INSERT INTO campaigns (id, title, description, status, rpg_system_id, owner_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          `).run(camp.id, campTitle, campDesc, campStatus, validSystemId, localOwnerId)
+          localCampaignId = camp.id
+        } else {
+          const info = db.prepare(`
+            INSERT INTO campaigns (title, description, status, rpg_system_id, owner_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+          `).run(campTitle, campDesc, campStatus, validSystemId, localOwnerId)
+          localCampaignId = Number(info.lastInsertRowid)
+        }
+      }
+
+      // 5. Campaign Members (campaign_members)
+      // Add current player
+      db.prepare(`
+        INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+        VALUES (?, ?, 'player', datetime('now'))
+        ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = excluded.role
+      `).run(localCampaignId, userId)
+
+      // Ensure GM is also member
+      if (localOwnerId !== userId) {
+        db.prepare(`
+          INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+          VALUES (?, ?, 'gm', datetime('now'))
+          ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = excluded.role
+        `).run(localCampaignId, localOwnerId)
+      }
+
+      // 6. Sessions (sessions)
+      const sessionsToProcess =
+        bundle.allSessions && Array.isArray(bundle.allSessions) && bundle.allSessions.length > 0
+          ? bundle.allSessions
+          : [bundle.session]
+
+      let localSessionId: number = bundle.session.id
+      let sessionsCount = 0
+
+      for (const s of sessionsToProcess) {
+        const sTitle = s.title || `Sessão #${s.id}`
+        const sStatus = s.status || 'active'
+        const sAccessCode =
+          s.access_code || (s.id === bundle.session.id ? bundle.session.access_code : null)
+        const sServerUrl = serverUrl || null
+
+        const existingSession = db.prepare('SELECT id FROM sessions WHERE id = ?').get(s.id) as
+          | { id: number }
+          | undefined
+
+        if (existingSession) {
+          db.prepare(`
+            UPDATE sessions
+            SET campaign_id = ?,
+                title = ?,
+                status = ?,
+                started_at = ?,
+                notes = ?,
+                access_code = ?,
+                server_url = ?
+            WHERE id = ?
+          `).run(
+            localCampaignId,
+            sTitle,
+            sStatus,
+            s.started_at || null,
+            s.notes || null,
+            sAccessCode,
+            sServerUrl,
+            existingSession.id
+          )
+          if (s.id === bundle.session.id) {
+            localSessionId = existingSession.id
+          }
+        } else {
+          const idTaken = db.prepare('SELECT id FROM sessions WHERE id = ?').get(s.id)
+          if (!idTaken && s.id) {
+            db.prepare(`
+              INSERT INTO sessions (id, campaign_id, title, status, started_at, notes, access_code, server_url, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            `).run(
+              s.id,
+              localCampaignId,
+              sTitle,
+              sStatus,
+              s.started_at || null,
+              s.notes || null,
+              sAccessCode,
+              sServerUrl
+            )
+            if (s.id === bundle.session.id) {
+              localSessionId = s.id
+            }
+          } else {
+            const info = db.prepare(`
+              INSERT INTO sessions (campaign_id, title, status, started_at, notes, access_code, server_url, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            `).run(
+              localCampaignId,
+              sTitle,
+              sStatus,
+              s.started_at || null,
+              s.notes || null,
+              sAccessCode,
+              sServerUrl
+            )
+            if (s.id === bundle.session.id) {
+              localSessionId = Number(info.lastInsertRowid)
+            }
+          }
+        }
+        sessionsCount++
+      }
+
+      return {
+        success: true,
+        campaignId: localCampaignId,
+        sessionId: localSessionId,
+        systemId: localSystemId || undefined,
+        stats: {
+          importedSystem: !!localSystemId,
+          importedContentCount: contentCount,
+          importedCampaign: true,
+          importedSessionsCount: sessionsCount
+        }
+      }
+    })
+
+    return importTransaction()
+  } catch (err: unknown) {
+    console.error('Error importing session bundle:', err)
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+

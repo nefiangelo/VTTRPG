@@ -4,8 +4,8 @@ import express from 'express'
 import cors from 'cors'
 import { Server as SocketIOServer, Socket } from 'socket.io'
 import { getDb } from './db'
-import { getSessionById, setSessionAccessCode } from './session'
-import { getCampaignById } from './campaign'
+import { getSessionById, getSessionsByCampaign, setSessionAccessCode } from './session'
+import { getCampaignById, getCampaignMembers } from './campaign'
 import { getRpgSystemById, getSystemContent } from './rpg_system'
 
 export interface ConnectedParticipant {
@@ -178,6 +178,32 @@ export async function startSessionServer(
 
     const system = getRpgSystemById(campaign.rpg_system_id)
     const content = system ? getSystemContent(system.id) : []
+    const allSessions = getSessionsByCampaign(campaign.id)
+    const members = getCampaignMembers(campaign.id)
+
+    // Opcional: Se veio nome de usuário do jogador na requisição, registra na campanha local do host
+    const joinUsername = String(req.query.username || req.headers['x-player-username'] || '').trim()
+    if (joinUsername && activeCampaignId) {
+      try {
+        const db = getDb()
+        let memberUser = db
+          .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE')
+          .get(joinUsername) as { id: number } | undefined
+        if (!memberUser) {
+          const res = db
+            .prepare(`INSERT INTO users (username, password, created_at) VALUES (?, 'network_player', datetime('now'))`)
+            .run(joinUsername)
+          memberUser = { id: Number(res.lastInsertRowid) }
+        }
+        db.prepare(`
+          INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+          VALUES (?, ?, 'player', datetime('now'))
+          ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = role
+        `).run(activeCampaignId, memberUser.id)
+      } catch (err) {
+        console.error('Erro ao registrar membro no host via HTTP:', err)
+      }
+    }
 
     return res.json({
       success: true,
@@ -189,11 +215,22 @@ export async function startSessionServer(
         notes: currentSession.notes,
         access_code: activeCode
       },
+      allSessions: allSessions.map((s) => ({
+        id: s.id,
+        title: s.title,
+        status: s.status,
+        started_at: s.started_at,
+        notes: s.notes,
+        access_code: s.id === currentSession.id ? activeCode : s.access_code
+      })),
       campaign: {
         id: campaign.id,
         title: campaign.title,
         description: campaign.description,
-        owner_username: campaign.owner_username
+        status: campaign.status,
+        rpg_system_id: campaign.rpg_system_id,
+        owner_username: campaign.owner_username,
+        members: members
       },
       system: system
         ? {
@@ -259,6 +296,29 @@ export async function startSessionServer(
 
         participantsMap.set(socket.id, participant)
         socket.join(`session_${activeSessionId}`)
+
+        // Se o participante for jogador, registra-o na tabela de membros da campanha no host
+        if (activeCampaignId && user?.username) {
+          try {
+            const db = getDb()
+            let memberUser = db
+              .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE')
+              .get(user.username.trim()) as { id: number } | undefined
+            if (!memberUser) {
+              const res = db
+                .prepare(`INSERT INTO users (username, password, created_at) VALUES (?, 'network_player', datetime('now'))`)
+                .run(user.username.trim())
+              memberUser = { id: Number(res.lastInsertRowid) }
+            }
+            db.prepare(`
+              INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+              VALUES (?, ?, ?, datetime('now'))
+              ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = role
+            `).run(activeCampaignId, memberUser.id, user.role || 'player')
+          } catch (err) {
+            console.error('Erro ao registrar participante no host via socket:', err)
+          }
+        }
 
         // Confirmação para o próprio usuário que entrou
         socket.emit('session:joined', {
