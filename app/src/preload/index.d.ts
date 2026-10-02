@@ -46,6 +46,52 @@ export interface RpgSystem {
   genre: string | null
 }
 
+export interface CampaignMember {
+  id: number
+  campaign_id: number
+  user_id: number
+  username: string
+  role: 'gm' | 'player' | 'observer'
+  joined_at: string
+}
+
+export interface CampaignWithDetails extends Campaign {
+  system_name?: string
+  system_slug?: string
+  owner_username?: string
+}
+
+/* -- Sessions ----------------------------------------------- */
+export interface Session {
+  id: number
+  campaign_id: number
+  title: string | null
+  status: 'scheduled' | 'active' | 'completed'
+  started_at: string | null
+  ended_at: string | null
+  notes: string | null
+  created_at: string
+}
+
+export interface SessionResult {
+  success: boolean
+  session?: Session
+  error?: string
+}
+
+export interface CreateSessionPayload {
+  campaign_id: number
+  title?: string
+  notes?: string
+}
+
+export interface UpdateSessionPayload {
+  id: number
+  title?: string
+  notes?: string
+  status?: 'scheduled' | 'active' | 'completed'
+}
+
 /* -- RPG Systems Full ---------------------------------------- */
 export interface AttributeField {
   key: string
@@ -148,7 +194,19 @@ interface API {
   campaigns: {
     create: (payload: CreateCampaignPayload) => Promise<CampaignResult>
     getByUser: (userId: number) => Promise<Campaign[]>
+    getById: (id: number) => Promise<CampaignWithDetails | null>
+    getMembers: (campaignId: number) => Promise<CampaignMember[]>
     getSystems: () => Promise<RpgSystem[]>
+  }
+  sessions: {
+    getByCampaign: (campaignId: number) => Promise<Session[]>
+    getById: (id: number) => Promise<Session | null>
+    create: (payload: CreateSessionPayload) => Promise<SessionResult>
+    update: (payload: UpdateSessionPayload) => Promise<SessionResult>
+    start: (id: number) => Promise<SessionResult>
+    end: (id: number, notes?: string) => Promise<SessionResult>
+    reopen: (id: number) => Promise<SessionResult>
+    delete: (id: number) => Promise<{ success: boolean; error?: string }>
   }
   systems: {
     getAll: () => Promise<RpgSystemFull[]>

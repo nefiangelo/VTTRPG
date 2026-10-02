@@ -82,3 +82,42 @@ export function getRpgSystems(): RpgSystem[] {
   const db = getDb()
   return db.prepare('SELECT id, name, slug, genre FROM rpg_systems ORDER BY name ASC').all() as RpgSystem[]
 }
+
+export interface CampaignMemberWithUser {
+  id: number
+  campaign_id: number
+  user_id: number
+  username: string
+  role: 'gm' | 'player' | 'observer'
+  joined_at: string
+}
+
+export interface CampaignWithDetails extends Campaign {
+  system_name?: string
+  system_slug?: string
+  owner_username?: string
+}
+
+export function getCampaignById(id: number): CampaignWithDetails | null {
+  const db = getDb()
+  const campaign = db.prepare(`
+    SELECT c.*, s.name as system_name, s.slug as system_slug, u.username as owner_username
+    FROM campaigns c
+    LEFT JOIN rpg_systems s ON s.id = c.rpg_system_id
+    LEFT JOIN users u ON u.id = c.owner_id
+    WHERE c.id = ?
+  `).get(id) as CampaignWithDetails | undefined
+  return campaign ?? null
+}
+
+export function getCampaignMembers(campaignId: number): CampaignMemberWithUser[] {
+  const db = getDb()
+  return db.prepare(`
+    SELECT cm.id, cm.campaign_id, cm.user_id, cm.role, cm.joined_at, u.username
+    FROM campaign_members cm
+    JOIN users u ON u.id = cm.user_id
+    WHERE cm.campaign_id = ?
+    ORDER BY CASE cm.role WHEN 'gm' THEN 1 WHEN 'player' THEN 2 ELSE 3 END, cm.joined_at ASC
+  `).all(campaignId) as CampaignMemberWithUser[]
+}
+

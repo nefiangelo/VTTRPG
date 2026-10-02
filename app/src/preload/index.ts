@@ -14,8 +14,31 @@ const api = {
       ipcRenderer.invoke('campaign:create', payload),
     getByUser: (userId: number) =>
       ipcRenderer.invoke('campaign:getByUser', userId),
+    getById: (id: number) =>
+      ipcRenderer.invoke('campaign:getById', id),
+    getMembers: (campaignId: number) =>
+      ipcRenderer.invoke('campaign:getMembers', campaignId),
     getSystems: () =>
       ipcRenderer.invoke('campaign:getSystems'),
+  },
+
+  sessions: {
+    getByCampaign: (campaignId: number) =>
+      ipcRenderer.invoke('session:getByCampaign', campaignId),
+    getById: (id: number) =>
+      ipcRenderer.invoke('session:getById', id),
+    create: (payload: { campaign_id: number; title?: string; notes?: string }) =>
+      ipcRenderer.invoke('session:create', payload),
+    update: (payload: { id: number; title?: string; notes?: string; status?: string }) =>
+      ipcRenderer.invoke('session:update', payload),
+    start: (id: number) =>
+      ipcRenderer.invoke('session:start', id),
+    end: (id: number, notes?: string) =>
+      ipcRenderer.invoke('session:end', id, notes),
+    reopen: (id: number) =>
+      ipcRenderer.invoke('session:reopen', id),
+    delete: (id: number) =>
+      ipcRenderer.invoke('session:delete', id),
   },
 
   systems: {

@@ -47,6 +47,7 @@ export default function HomePage(): React.JSX.Element {
                     <CampaignCard
                       key={c.id}
                       campaign={c}
+                      onClick={() => navigate(`/campaigns/${c.id}/sessions`)}
                     />
                   ))}
                 </div>
