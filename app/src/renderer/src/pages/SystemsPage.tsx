@@ -30,28 +30,24 @@ const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Western', 'Modern', 'Post
 
 
 
-/* ─── System Banner (Ícones Matemáticos Modernos) ────────────────────────────── */
-function SystemBanner({ genre }: { genre?: string }): React.JSX.Element {
+/* ─── System Banner (Ícones sem letras e com traço mais grosso) ────────────────────────────── */
+function SystemBanner({ genre }: { genre?: string; systemName?: string }): React.JSX.Element {
   const lower = genre?.toLowerCase() || ''
 
-  // A classe w-full h-full e o stroke="currentColor" garantem que todos 
-  // os ícones se comportem de forma idêntica (tamanho, cor e transição).
-
+  // O strokeWidth foi alterado para "2" em todos os SVGs para deixar as linhas mais marcantes e visíveis.
   let BigIcon = (
-    // D20 (Padrão) - Icosaedro perfeito
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
       <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" />
       <line x1="12" y1="22" x2="12" y2="15.5" />
       <polyline points="22 8.5 12 15.5 2 8.5" />
       <polyline points="2 15.5 12 8.5 22 15.5" />
       <line x1="12" y1="2" x2="12" y2="8.5" />
-    </svg>
+    </svg> // D20 (Padrão)
   )
 
   if (lower.includes('fantasy') || lower.includes('medieval')) {
     BigIcon = (
-      // Espadas Cruzadas (Simetria matemática)
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
         <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
         <line x1="13" y1="19" x2="19" y2="13" />
         <line x1="16" y1="16" x2="20" y2="20" />
@@ -60,12 +56,11 @@ function SystemBanner({ genre }: { genre?: string }): React.JSX.Element {
         <line x1="5" y1="14" x2="9" y2="18" />
         <line x1="7" y1="17" x2="4" y2="20" />
         <line x1="3" y1="19" x2="5" y2="21" />
-      </svg>
+      </svg> // Espadas Cruzadas
     )
   } else if (lower.includes('cyberpunk') || lower.includes('sci-fi')) {
     BigIcon = (
-      // CPU / Microchip (Bordas e pinos perfeitamente alinhados)
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
         <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
         <rect x="9" y="9" width="6" height="6" />
         <line x1="9" y1="1" x2="9" y2="4" />
@@ -76,65 +71,45 @@ function SystemBanner({ genre }: { genre?: string }): React.JSX.Element {
         <line x1="20" y1="14" x2="23" y2="14" />
         <line x1="1" y1="9" x2="4" y2="9" />
         <line x1="1" y1="14" x2="4" y2="14" />
-      </svg>
+      </svg> // Microchip
     )
   } else if (lower.includes('horror')) {
     BigIcon = (
-      // Caveira Minimalista (Curvas suaves e precisas)
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
         <circle cx="9" cy="12" r="1" />
         <circle cx="15" cy="12" r="1" />
         <path d="M8 20v2h8v-2" />
         <path d="M12.5 17l-.5-1-.5 1h1z" />
         <path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20" />
-      </svg>
+      </svg> // Caveira
     )
   } else if (lower.includes('western')) {
     BigIcon = (
-      // Mira de Revólver / Crosshair (Alvo perfeito do faroeste)
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
         <circle cx="12" cy="12" r="10" />
         <line x1="22" y1="12" x2="18" y2="12" />
         <line x1="6" y1="12" x2="2" y2="12" />
         <line x1="12" y1="6" x2="12" y2="2" />
         <line x1="12" y1="22" x2="12" y2="18" />
-      </svg>
+      </svg> // Mira / Crosshair
     )
   } else if (lower.includes('post-apocalyptic')) {
     BigIcon = (
-      // Radiação Oficial (Feita com circunferências cortadas)
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
         <path d="M12 12h.01" />
         <path d="M7.5 4.2c-.3-.5-.9-.7-1.3-.4C3.9 5.5 2 9.2 2 13c0 .5.4 1 1 1h5c.5 0 1-.4 1-1 0-1.8.8-3.4 2-4.5" />
         <path d="M21 13c0-3.8-1.9-7.5-4.2-9.2-.4-.3-1-.1-1.3.4l-2.4 4.1c1.2 1.1 2 2.7 2 4.5 0 .5.4 1 1 1h5c.5 0 1-.4 1-1Z" />
         <path d="M8.2 15.5c-.4.4-.5 1-.2 1.4 1.8 3.1 5.3 4.9 8.5 3.9.5-.1.8-.7.6-1.1l-2.7-4c-.9.9-2.2 1.4-3.6 1.4-1.2 0-2.3-.4-3.2-1-.4-.3-1-.2-1.4.2Z" />
-      </svg>
+      </svg> // Radiação
     )
   }
 
   return (
     <div className="w-full h-24 bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] relative shrink-0 border-b border-vtt-dark-gray overflow-hidden">
-      {/*
-        Ícone gigante / marca d'água
-        Normal: quase invisível (#292929)
-        Hover: muda APENAS de cor para dourado, limpo, sem pular ou girar.
-      */}
-      <div
-        className="
-          absolute
-          -right-6
-          -bottom-6
-          w-36
-          h-36
-          text-[#292929]
-          transition-colors
-          duration-500
-          ease-out
-          group-hover:text-vtt-golden
-          pointer-events-none
-          drop-shadow-md
-        "
-      >
+      {/* Ícone Único 
+          - Tamanho mantido w-28 h-28
+          - No hover, ganha cor dourada e brilho sutil */}
+      <div className="absolute -right-4 -bottom-4 w-28 h-28 text-[#262626] transition-all duration-300 ease-in-out group-hover:text-vtt-golden group-hover:drop-shadow-[0_0_8px_rgba(233,209,128,0.3)] pointer-events-none">
         {BigIcon}
       </div>
     </div>
@@ -1112,7 +1087,7 @@ function SystemCard({ system, onEdit, onDelete, onView }: {
                         overflow-hidden">
 
       {/* Linha de destaque VERMELHA superposta ao banner no hover */}
-      <div className="absolute top-0 left-0 w-full h-[2px] z-10 bg-gradient-to-r from-transparent via-vtt-red to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+      <div className="absolute -right-4 -bottom-4 w-28 h-28 text-[#262626] transition-all duration-300 ease-in-out group-hover:text-vtt-golden group-hover:drop-shadow-[0_0_8px_rgba(233,209,128,0.3)] pointer-events-none" />
 
       {/* Renderiza o Banner Dinâmico Limpo */}
       <SystemBanner genre={system.genre} />
