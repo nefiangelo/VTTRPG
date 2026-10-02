@@ -70,6 +70,7 @@ export interface Session {
   started_at: string | null
   ended_at: string | null
   notes: string | null
+  access_code?: string | null
   created_at: string
 }
 
@@ -185,6 +186,62 @@ export interface ContentResult {
   error?: string
 }
 
+/* -- Session Server & Network -------------------------------- */
+export interface ConnectedParticipant {
+  socketId: string
+  userId?: number
+  username: string
+  role: 'gm' | 'player' | 'observer'
+  joinedAt: string
+  pingMs?: number
+  downloadedContent?: boolean
+}
+
+export interface SessionServerStatus {
+  isRunning: boolean
+  sessionId?: number
+  campaignId?: number
+  port?: number
+  accessCode?: string
+  localAddresses?: string[]
+  participantsCount?: number
+  participants?: ConnectedParticipant[]
+}
+
+export interface ServerStartResult {
+  success: boolean
+  port?: number
+  accessCode?: string
+  localAddresses?: string[]
+  error?: string
+}
+
+export interface SessionBundleResult {
+  success: boolean
+  session: {
+    id: number
+    title: string | null
+    status: string
+    started_at: string | null
+    notes: string | null
+    access_code: string
+  }
+  campaign: {
+    id: number
+    title: string
+    description: string | null
+    owner_username?: string
+  }
+  system: RpgSystemFull | null
+  content: SystemContentEntry[]
+  stats: {
+    totalContentItems: number
+    attributeGroupsCount: number
+  }
+  serverTime?: string
+  error?: string
+}
+
 /* -- Window API --------------------------------------------- */
 interface API {
   auth: {
@@ -220,6 +277,12 @@ interface API {
     create: (payload: CreateContentPayload) => Promise<ContentResult>
     update: (payload: UpdateContentPayload) => Promise<ContentResult>
     delete: (id: number) => Promise<{ success: boolean; error?: string }>
+  }
+  server: {
+    start: (sessionId: number, port?: number) => Promise<ServerStartResult>
+    stop: () => Promise<{ success: boolean }>
+    getStatus: () => Promise<SessionServerStatus>
+    getLocalIps: () => Promise<string[]>
   }
 }
 

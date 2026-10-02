@@ -8,6 +8,7 @@ export interface Session {
   started_at: string | null
   ended_at: string | null
   notes: string | null
+  access_code?: string | null
   created_at: string
 }
 
@@ -195,4 +196,22 @@ export function deleteSession(id: number): { success: boolean; error?: string } 
     return { success: false, error: 'Sessão não encontrada.' }
   }
   return { success: true }
+}
+
+/**
+ * Define ou atualiza o código de acesso da sessão.
+ */
+export function setSessionAccessCode(id: number, code: string): void {
+  const db = getDb()
+  db.prepare('UPDATE sessions SET access_code = ? WHERE id = ?').run(code.trim().toUpperCase(), id)
+}
+
+/**
+ * Busca uma sessão ativa ou agendada pelo código de acesso.
+ */
+export function getSessionByCode(code: string): Session | null {
+  const db = getDb()
+  const clean = code.trim().toUpperCase()
+  const session = db.prepare('SELECT * FROM sessions WHERE UPPER(access_code) = ?').get(clean) as Session | undefined
+  return session ?? null
 }

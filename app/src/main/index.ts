@@ -22,6 +22,12 @@ import {
 import type { CreateRpgSystemPayload, UpdateRpgSystemPayload, CreateContentPayload, UpdateContentPayload, ContentType } from './rpg_system'
 import type { CreateCampaignPayload } from './campaign'
 import { closeDb } from './db'
+import {
+  startSessionServer,
+  stopSessionServer,
+  getSessionServerStatus,
+  getLocalIpAddresses
+} from './session_server'
 
 function createWindow(): void {
   // Create the browser window.
@@ -137,6 +143,20 @@ app.whenReady().then(() => {
   ipcMain.handle('content:update', (_e, payload: UpdateContentPayload) => updateSystemContent(payload))
   ipcMain.handle('content:delete', (_e, id: number) => deleteSystemContent(id))
 
+  // Session Server (Express + Socket.io)
+  ipcMain.handle('server:start', (_e, sessionId: number, port?: number) =>
+    startSessionServer(sessionId, port)
+  )
+  ipcMain.handle('server:stop', () =>
+    stopSessionServer()
+  )
+  ipcMain.handle('server:getStatus', () =>
+    getSessionServerStatus()
+  )
+  ipcMain.handle('server:getLocalIps', () =>
+    getLocalIpAddresses()
+  )
+
   createWindow()
 
   app.on('activate', function () {
@@ -150,6 +170,7 @@ app.whenReady().then(() => {
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
+  stopSessionServer()
   closeDb()
   if (process.platform !== 'darwin') {
     app.quit()

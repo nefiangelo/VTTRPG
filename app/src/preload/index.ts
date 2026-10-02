@@ -55,6 +55,13 @@ const api = {
     update: (payload: unknown) => ipcRenderer.invoke('content:update', payload),
     delete: (id: number) => ipcRenderer.invoke('content:delete', id),
   },
+
+  server: {
+    start: (sessionId: number, port?: number) => ipcRenderer.invoke('server:start', sessionId, port),
+    stop: () => ipcRenderer.invoke('server:stop'),
+    getStatus: () => ipcRenderer.invoke('server:getStatus'),
+    getLocalIps: () => ipcRenderer.invoke('server:getLocalIps'),
+  },
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
