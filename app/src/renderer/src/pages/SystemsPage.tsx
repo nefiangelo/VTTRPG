@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FilterContent } from '../components/FilterContent'
 import Sidebar from '../components/Sidebar/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import { useCampaigns } from '../context/CampaignContext'
@@ -30,7 +31,7 @@ const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Western', 'Modern', 'Post
 
 
 
-/* ─── System Banner (Ícones sem letras e com traço mais grosso) ────────────────────────────── */
+/* ─── System Banner (Ýcones sem letras e com traço mais grosso) ────────────────────────────── */
 function SystemBanner({ genre }: { genre?: string; systemName?: string }): React.JSX.Element {
   const lower = genre?.toLowerCase() || ''
 
@@ -106,7 +107,7 @@ function SystemBanner({ genre }: { genre?: string; systemName?: string }): React
 
   return (
     <div className="w-full h-24 bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] relative shrink-0 border-b border-vtt-dark-gray overflow-hidden">
-      {/* Ícone Único 
+      {/* Ýcone Único 
           - Tamanho mantido w-28 h-28
           - No hover, ganha cor dourada e brilho sutil */}
       <div className="absolute -right-4 -bottom-4 w-28 h-28 text-[#262626] transition-all duration-300 ease-in-out group-hover:text-vtt-golden group-hover:drop-shadow-[0_0_8px_rgba(233,209,128,0.3)] pointer-events-none">
@@ -133,7 +134,7 @@ const IconDice = (): React.JSX.Element => (
 )
 
 const IconGears = (): React.JSX.Element => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </svg>
@@ -267,7 +268,7 @@ function FieldRow({
       >
         <option value="text">Texto</option>
         <option value="number">Número</option>
-        <option value="textarea">Área de Texto</option>
+        <option value="textarea">Ýrea de Texto</option>
         <option value="list">Lista</option>
         <option value="checkbox">Checkbox</option>
       </select>
@@ -1072,7 +1073,7 @@ function DeleteModal({ system, onClose, onDeleted }: { system: RpgSystemFull; on
   )
 }
 
-/* ─── System Card (Hover Vermelho + Dourado Claro) ───────────────────────────────── */
+/* ??? System Card ????????????????????????????????? */
 function SystemCard({ system, onEdit, onDelete, onView }: {
   system: RpgSystemFull
   onEdit: () => void
@@ -1084,23 +1085,20 @@ function SystemCard({ system, onEdit, onDelete, onView }: {
     <article className="group relative bg-vtt-dark rounded-xl flex flex-col select-none
                         border border-vtt-dark-gray hover:border-vtt-red/60 
                         transition-all duration-300 shadow-md hover:shadow-[0_4px_24px_rgba(211,47,47,0.15)]
+                        hover:-translate-y-1 hover:scale-[1.02]
                         overflow-hidden">
 
-      {/* Linha de destaque VERMELHA superposta ao banner no hover */}
       <div className="absolute -right-4 -bottom-4 w-28 h-28 text-[#262626] transition-all duration-300 ease-in-out group-hover:text-vtt-golden group-hover:drop-shadow-[0_0_8px_rgba(233,209,128,0.3)] pointer-events-none" />
 
-      {/* Renderiza o Banner Dinâmico Limpo */}
       <SystemBanner genre={system.genre} />
 
-      {/* Corpo de Informações */}
+      {/* Corpo de Informacoes */}
       <div className="p-5 flex flex-col gap-4 flex-1">
 
-        {/* Topo: Nome, Versão e Engrenagem */}
+        {/* Topo: Nome e Versao */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex flex-col flex-1 min-w-0">
             <div className="flex items-center gap-2 w-full">
-
-              {/* Título: Começa Dourado e acende para Dourado Claro (#FBE8A6) no hover */}
               <h3 className="text-vtt-golden group-hover:text-[#FBE8A6] font-bold text-lg leading-tight truncate drop-shadow-sm transition-colors duration-300">
                 {system.name}
               </h3>
@@ -1112,34 +1110,25 @@ function SystemCard({ system, onEdit, onDelete, onView }: {
               )}
             </div>
           </div>
-
-          {/* Ícone de engrenagem */}
-          <div className="text-vtt-light-gray group-hover:text-vtt-red transition-all duration-300 transform group-hover:rotate-45 shrink-0 mt-0.5">
-            <IconGears />
-          </div>
         </div>
 
-        {/* Botões de Ação (Com mt-auto para grudar no fundo) */}
+
+        {/* Botoes de Acao (Proporcao 2/3 e 1/3) */}
         <div className="flex gap-2 pt-1 border-t border-vtt-dark-gray/50 mt-auto">
+          <button type="button" onClick={onEdit}
+            className="w-1/3 flex items-center justify-center gap-1 py-2 px-3 rounded-lg
+                        bg-transparent hover:bg-vtt-dark-gray/50 border border-transparent hover:border-vtt-light-gray
+                        text-vtt-light-gray hover:text-vtt-golden transition-all duration-200 cursor-pointer group/edit"
+            title="Editar">
+            <div className="transform group-hover/edit:rotate-45 transition-all duration-300 shrink-0 flex items-center justify-center">
+              <IconGears />
+            </div>
+          </button>
           <button type="button" onClick={onView}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg
+            className="w-2/3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg
                        bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green text-xs font-semibold 
                        hover:bg-vtt-green hover:text-vtt-light transition-all duration-200 cursor-pointer">
-            <IconScroll /> Conteúdo
-          </button>
-          <button type="button" onClick={onEdit}
-            className="flex items-center justify-center gap-1 py-2 px-3 rounded-lg
-                       bg-transparent hover:bg-vtt-dark-gray/50 border border-transparent hover:border-vtt-light-gray
-                       text-vtt-light-gray hover:text-vtt-light text-xs transition-all duration-200 cursor-pointer"
-            title="Editar">
-            <IconEdit />
-          </button>
-          <button type="button" onClick={onDelete}
-            className="flex items-center justify-center gap-1 py-2 px-3 rounded-lg
-                       bg-transparent hover:bg-vtt-dark-red/20 border border-transparent hover:border-vtt-red/30
-                       text-vtt-light-gray hover:text-vtt-light-red text-xs transition-all duration-200 cursor-pointer"
-            title="Excluir">
-            <IconTrash />
+            <IconScroll /> Conteudo
           </button>
         </div>
       </div>
@@ -1147,7 +1136,6 @@ function SystemCard({ system, onEdit, onDelete, onView }: {
   )
 }
 
-/* ─── Page ───────────────────────────────────────────────────── */
 export default function SystemsPage(): React.JSX.Element {
   const { user } = useAuth()
   const { fetchSystems } = useCampaigns()
@@ -1157,6 +1145,8 @@ export default function SystemsPage(): React.JSX.Element {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<RpgSystemFull | undefined>(undefined)
   const [deleting, setDeleting] = useState<RpgSystemFull | undefined>(undefined)
+
+  const [search, setSearch] = useState('')
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -1174,6 +1164,11 @@ export default function SystemsPage(): React.JSX.Element {
   const onSaved = (): void => { closeForm(); load() }
   const onDeleted = (): void => { setDeleting(undefined); load() }
 
+  // L�GICA DO FILTRO: Cria a lista filtrada baseada no estado 'search'
+  const filteredSystems = systems.filter((system) =>
+    system.name.toLowerCase().includes(search.toLowerCase())
+  )
+
   return (
     <div className="flex flex-row h-screen overflow-hidden">
       <Sidebar />
@@ -1182,17 +1177,24 @@ export default function SystemsPage(): React.JSX.Element {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <button type="button" onClick={() => navigate('/home')}
+            {/* <button type="button" onClick={() => navigate('/home')}
               className="flex items-center gap-1.5 text-neutral-400 hover:text-vtt-light text-sm transition-colors mb-4">
               <IconArrowLeft /> Voltar
-            </button>
+            </button> */}
             <h1 className="text-3xl font-bold text-vtt-golden">Sistemas RPG</h1>
             {/* <p className="text-neutral-400 text-sm mt-1">Gerencie os sistemas de regras e seus atributos.</p> */}
           </div>
+        </div>
+
+        {/* BARRA DE BUSCA E BOT�O NOVO SISTEMA */}
+        <div className="flex items-center justify-between mb-2">
+          <FilterContent search={search} setSearch={setSearch} />
+
           <button type="button" onClick={openCreate}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vtt-green text-white
-                       font-semibold text-sm hover:bg-vtt-light-green transition-colors cursor-pointer
-                       shadow-[0_0_16px_rgba(46,111,64,0.3)] hover:shadow-[0_0_24px_rgba(67,161,93,0.4)]">
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl
+                       bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green text-sm font-semibold 
+                       hover:bg-vtt-green hover:text-vtt-light transition-all duration-200 cursor-pointer
+                       hover:shadow-[0_0_24px_rgba(67,161,93,0.4)]">
             <IconPlus /> Novo Sistema
           </button>
         </div>
@@ -1215,7 +1217,8 @@ export default function SystemsPage(): React.JSX.Element {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {systems.map(s => (
+            {/* 4. USE 'filteredSystems' NO LUGAR DE 'systems' NO MAP() */}
+            {filteredSystems.map(s => (
               <SystemCard
                 key={s.id}
                 system={s}
@@ -1224,6 +1227,14 @@ export default function SystemsPage(): React.JSX.Element {
                 onView={() => navigate(`/systems/${s.id}/content`)}
               />
             ))}
+
+            {/* 5. FEEDBACK OPCIONAL SE N�O ACHAR NADA */}
+            {filteredSystems.length === 0 && search !== '' && (
+              <div className="col-span-full mt-8 flex justify-center w-full">
+                <p className="text-neutral-400">Nenhum sistema encontrado com "{search}".</p>
+              </div>
+            )}
+
           </div>
         )}
       </main>
