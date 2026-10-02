@@ -19,32 +19,69 @@ export default function JoinCampaignPage(): React.JSX.Element {
   const [downloadedBundle, setDownloadedBundle] = useState<SessionBundleResult | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  // Trata a entrada do usuário: detecta se colou host:port#CODE ou IP:PORT/CODE
-  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value
+  // Processa texto colado ou digitado no formato IP:PORTA#CODIGO ou URL
+  const processInputString = (text: string) => {
+    const raw = text.trim()
     setErrorMessage(null)
 
-    // Detecta padrão host:port#CODE ou IP:PORT:CODE
+    // Formato 1: IP:PORTA#CODIGO ou http://IP:PORTA#CODIGO
     if (raw.includes('#')) {
       const [hostPart, codePart] = raw.split('#')
       if (hostPart) {
         const fullHost = hostPart.startsWith('http') ? hostPart : `http://${hostPart}`
-        setServerUrl(fullHost)
+        setServerUrl(fullHost.replace(/\/$/, ''))
       }
       if (codePart) {
-        setInputCode(codePart.trim().toUpperCase())
-        return
-      }
-    } else if (raw.includes('/') && !raw.startsWith('http')) {
-      const [hostPart, codePart] = raw.split('/')
-      if (hostPart && codePart) {
-        setServerUrl(`http://${hostPart}`)
-        setInputCode(codePart.trim().toUpperCase())
+        setInputCode(codePart.trim().toUpperCase().slice(0, 10))
         return
       }
     }
 
-    setInputCode(raw.toUpperCase())
+    // Formato 2: URL com query param ?code=
+    if (raw.includes('?code=')) {
+      const [hostPart, queryPart] = raw.split('?code=')
+      if (hostPart) {
+        const fullHost = hostPart.startsWith('http') ? hostPart : `http://${hostPart}`
+        setServerUrl(fullHost.replace(/\/$/, ''))
+      }
+      if (queryPart) {
+        setInputCode(queryPart.trim().toUpperCase().slice(0, 10))
+        return
+      }
+    }
+
+    // Formato 3: IP:PORTA/CODIGO (sem protocolo)
+    if (raw.includes('/') && !raw.startsWith('http')) {
+      const [hostPart, codePart] = raw.split('/')
+      if (hostPart && codePart) {
+        setServerUrl(`http://${hostPart}`)
+        setInputCode(codePart.trim().toUpperCase().slice(0, 10))
+        return
+      }
+    }
+
+    // Se colou apenas uma URL ou endereço IP com porta (sem código)
+    if (raw.startsWith('http://') || raw.startsWith('https://') || (/^[\d.]+(:\d+)?$/.test(raw) && raw.includes(':'))) {
+      const fullHost = raw.startsWith('http') ? raw : `http://${raw}`
+      setServerUrl(fullHost.replace(/\/$/, ''))
+      setShowAdvanced(true)
+      return
+    }
+
+    // Caso padrão: Apenas o código de acesso (limita a 10 caracteres)
+    setInputCode(raw.toUpperCase().slice(0, 10))
+  }
+
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    processInputString(e.target.value)
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = e.clipboardData.getData('text')
+    if (pasted.includes('#') || pasted.includes('?code=') || pasted.includes(':')) {
+      e.preventDefault()
+      processInputString(pasted)
+    }
   }
 
   // Executa o fluxo: 1. Baixar conteúdo via HTTP -> 2. Verificar dados -> 3. Ir para a sessão
@@ -186,15 +223,15 @@ export default function JoinCampaignPage(): React.JSX.Element {
             <form onSubmit={handleStartDownloadAndJoin} className='flex flex-col gap-5'>
               <div>
                 <label className='block text-xs font-semibold uppercase tracking-wider text-neutral-400 mb-2'>
-                  Digite o Código da Sessão (6 caracteres):
+                  Código da Sessão ou Convite Completo:
                 </label>
                 <div className='relative'>
                   <input
                     type='text'
                     value={inputCode}
                     onChange={handleCodeChange}
-                    maxLength={10}
-                    placeholder='Ex: K8N2XP'
+                    onPaste={handlePaste}
+                    placeholder='Ex: K8N2XP ou IP:3001#CÓDIGO'
                     disabled={isProcessing}
                     className='w-full px-5 py-4 bg-vtt-dark-gray border border-vtt-light-gray/60 rounded-xl text-2xl font-mono font-bold text-center tracking-widest text-white uppercase focus:outline-none focus:border-vtt-red transition-all'
                   />
@@ -208,8 +245,25 @@ export default function JoinCampaignPage(): React.JSX.Element {
                     </button>
                   )}
                 </div>
+
+                {serverUrl && serverUrl !== 'http://localhost:3001' && (
+                  <div className='mt-2.5 flex items-center justify-between text-xs text-emerald-400 bg-emerald-950/40 border border-emerald-800/60 rounded-lg px-3 py-2'>
+                    <div className='flex items-center gap-2'>
+                      <span>🌐 Servidor detectado:</span>
+                      <strong className='font-mono text-white'>{serverUrl}</strong>
+                    </div>
+                    <button
+                      type='button'
+                      onClick={() => setServerUrl('http://localhost:3001')}
+                      className='text-neutral-400 hover:text-white underline cursor-pointer text-[11px]'
+                    >
+                      Restaurar padrão
+                    </button>
+                  </div>
+                )}
+
                 <p className='text-xs text-neutral-500 mt-2'>
-                  Dica: Você também pode colar o formato completo fornecido pelo Mestre (ex: <code className='text-neutral-400'>localhost:3001#CODE</code>).
+                  Dica: Você pode digitar o código ou colar o convite gerado pelo Mestre (ex: <code className='text-neutral-400'>192.168.1.X:3001#CÓDIGO</code>).
                 </p>
               </div>
 
