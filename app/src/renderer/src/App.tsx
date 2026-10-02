@@ -8,6 +8,7 @@ import HomePage         from './pages/HomePage'
 import NewCampaignPage  from './pages/NewCampaignPage'
 import JoinCampaignPage from './pages/JoinCampaignPage'
 import GameSessionPage  from './pages/GameSessionPage'
+import CampaignSessionsPage from './pages/CampaignSessionsPage'
 import SystemsPage      from './pages/SystemsPage'
 import SystemContentPage from './pages/SystemContentPage'
 
@@ -37,8 +38,10 @@ function AppRoutes(): React.JSX.Element {
       {/* App */}
       <Route path="/home"          element={<PrivateRoute><HomePage /></PrivateRoute>} />
       <Route path="/new-campaign"  element={<PrivateRoute><NewCampaignPage /></PrivateRoute>} />
+      <Route path="/campaigns/:id/sessions" element={<PrivateRoute><CampaignSessionsPage /></PrivateRoute>} />
       <Route path="/join-campaign" element={<PrivateRoute><JoinCampaignPage /></PrivateRoute>} />
       <Route path="/session"       element={<PrivateRoute><GameSessionPage /></PrivateRoute>} />
+      <Route path="/sessions/:id"  element={<PrivateRoute><GameSessionPage /></PrivateRoute>} />
       <Route path="/systems"       element={<PrivateRoute><SystemsPage /></PrivateRoute>} />
       <Route path="/systems/:id/content" element={<PrivateRoute><SystemContentPage /></PrivateRoute>} />
 

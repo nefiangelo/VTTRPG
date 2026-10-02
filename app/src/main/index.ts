@@ -3,7 +3,18 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { register, login } from './auth'
-import { createCampaign, getCampaignsByUser, getRpgSystems } from './campaign'
+import { createCampaign, getCampaignsByUser, getRpgSystems, getCampaignById, getCampaignMembers } from './campaign'
+import {
+  getSessionsByCampaign,
+  getSessionById,
+  createSession,
+  updateSession,
+  startSession,
+  endSession,
+  reopenSession,
+  deleteSession
+} from './session'
+import type { CreateSessionPayload, UpdateSessionPayload } from './session'
 import {
   getRpgSystemsFull, getRpgSystemById, createRpgSystem, updateRpgSystem, deleteRpgSystem,
   getSystemContent, createSystemContent, updateSystemContent, deleteSystemContent,
@@ -77,8 +88,40 @@ app.whenReady().then(() => {
   ipcMain.handle('campaign:getByUser', (_e, userId: number) =>
     getCampaignsByUser(userId)
   )
+  ipcMain.handle('campaign:getById', (_e, id: number) =>
+    getCampaignById(id)
+  )
+  ipcMain.handle('campaign:getMembers', (_e, campaignId: number) =>
+    getCampaignMembers(campaignId)
+  )
   ipcMain.handle('campaign:getSystems', () =>
     getRpgSystems()
+  )
+
+  // Sessions
+  ipcMain.handle('session:getByCampaign', (_e, campaignId: number) =>
+    getSessionsByCampaign(campaignId)
+  )
+  ipcMain.handle('session:getById', (_e, id: number) =>
+    getSessionById(id)
+  )
+  ipcMain.handle('session:create', (_e, payload: CreateSessionPayload) =>
+    createSession(payload)
+  )
+  ipcMain.handle('session:update', (_e, payload: UpdateSessionPayload) =>
+    updateSession(payload)
+  )
+  ipcMain.handle('session:start', (_e, id: number) =>
+    startSession(id)
+  )
+  ipcMain.handle('session:end', (_e, id: number, notes?: string) =>
+    endSession(id, notes)
+  )
+  ipcMain.handle('session:reopen', (_e, id: number) =>
+    reopenSession(id)
+  )
+  ipcMain.handle('session:delete', (_e, id: number) =>
+    deleteSession(id)
   )
 
   // RPG Systems full CRUD
