@@ -157,6 +157,49 @@ const IconGrip = (): React.JSX.Element => (
   </svg>
 )
 
+// IMPORTAR SISTEMAS A PARTIR DE ARQUIVOS
+const IconFileImport = (): React.JSX.Element => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="M12 12v6" />
+    <path d="M9 15l3 3 3-3" />
+  </svg>
+)
+
+/* ─── Import System Modal (EM DEV) ──────────────────────────── */
+function ImportModal({ onClose }: { onClose: () => void }): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full max-w-md bg-vtt-dark border border-vtt-dark-gray rounded-2xl p-8 shadow-2xl flex flex-col gap-5">
+        <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
+          <h2 className="text-lg font-bold text-vtt-golden flex items-center gap-2">
+            <IconFileImport /> Importar Sistema
+          </h2>
+          <button type="button" onClick={onClose} className="text-neutral-500 hover:text-vtt-light transition-colors text-xl cursor-pointer">✕</button>
+        </div>
+
+        <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-vtt-dark-gray rounded-xl bg-vtt-dark-gray/20">
+          <div className="text-vtt-golden/50 mb-3 transform scale-150">
+            <IconFileImport />
+          </div>
+          <p className="text-neutral-400 text-sm text-center px-4">
+            A importação de sistemas (JSON) estará disponível em atualizações futuras.
+          </p>
+        </div>
+
+        <div className="flex justify-end mt-2">
+          <button type="button" onClick={onClose}
+            className="w-full py-2.5 rounded-lg border border-vtt-light-gray text-neutral-300 text-sm font-semibold hover:border-vtt-golden hover:text-vtt-golden transition-colors cursor-pointer">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ─── Attribute Field Row ────────────────────────────────────── */
 function FieldRow({
   field,
@@ -268,7 +311,7 @@ function FieldRow({
       >
         <option value="text">Texto</option>
         <option value="number">Número</option>
-        <option value="textarea">Ýrea de Texto</option>
+        <option value="textarea">Área de Texto</option>
         <option value="list">Lista</option>
         <option value="checkbox">Checkbox</option>
       </select>
@@ -487,6 +530,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [version, setVersion] = useState(initial?.version ?? '')
   const [genre, setGenre] = useState(initial?.genre ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
+
   const [groups, setGroups] = useState<AttributeGroup[]>(() => {
     return (initial?.structure?.attributeGroups ?? []).map(g => ({
       ...g,
@@ -501,6 +545,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [selectedContentType, setSelectedContentType] = useState<ContentType>('class')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   /* ─── Content Fields DnD ───────────────────────────────────── */
   const [draggedContentField, setDraggedContentField] = useState<number | null>(null)
@@ -752,6 +797,96 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     onSaved()
   }
 
+  const IconBox = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="m3.3 7 8.7 5 8.7-5" />
+      <path d="M12 22V12" />
+    </svg>
+  )
+
+  const IconCharacter = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+      <path d="M10 9H8" />
+    </svg>
+  )
+
+  // Substitutos minimalistas para Tipos de Conteúdo
+  const IconSpell = (): React.JSX.Element => (
+    // Varinha mágica lançando feitiço
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m8.5 11.5-5 5a2.121 2.121 0 0 0 3 3l5-5" />
+      <path d="m15 4-1.5 1.5" />
+      <path d="m20 9-1.5 1.5" />
+      <path d="m11 7-1.5 1.5" />
+      <path d="m17 13-1.5 1.5" />
+      <path d="m16 5 3 3" />
+    </svg>
+  )
+
+  const IconMonster = (): React.JSX.Element => (
+    // Caveira/Criatura
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 9c0-4 3-7 7-7s7 3 7 7v6l-3 3h-8l-3-3V9z" />
+      <path d="M9 14h6" />
+      <path d="M9 10h.01" />
+      <path d="M15 10h.01" />
+    </svg>
+  )
+
+  const IconItem = (): React.JSX.Element => (
+    // Frasco/Poção
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 2h6" />
+      <path d="M12 2v4" />
+      <path d="M10 6l-5 11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2l-5-11Z" />
+      <path d="M5 14h14" />
+    </svg>
+  )
+
+  const IconClass = (): React.JSX.Element => (
+    // Estrela/Emblema (Profissão)
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l3 6 6 1-4.5 4.5 1 6.5-5.5-3-5.5 3 1-6.5L3 9l6-1z" />
+    </svg>
+  )
+
+  const IconRace = (): React.JSX.Element => (
+    // Busto/Origem
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="5" />
+      <path d="M20 21a8 8 0 0 0-16 0" />
+    </svg>
+  )
+
+  const IconInfo = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
+
+  const IconLayers = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  )
+
+  const IconAlert = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </svg>
+  )
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -762,277 +897,340 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
         className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-vtt-dark border border-vtt-dark-gray
                    rounded-2xl flex flex-col shadow-2xl"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-5 border-b border-vtt-dark-gray shrink-0">
-          <h2 className="text-xl font-bold text-vtt-light">
+        {/* Header do Modal */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-vtt-dark-gray shrink-0 bg-vtt-dark sticky top-0 z-10">
+          <h2 className="text-xl font-bold text-vtt-golden">
             {initial ? 'Editar Sistema RPG' : 'Novo Sistema RPG'}
           </h2>
           <button type="button" onClick={onClose}
             className="text-neutral-500 hover:text-vtt-light transition-colors text-xl cursor-pointer">✕</button>
         </div>
 
-        <div className="flex flex-col gap-6 p-8">
+        {/* Corpo do Formulário */}
+        <div className="flex flex-col gap-8 p-8">
           {error && (
             <div className="bg-red-950/60 border border-red-700/50 text-red-400 text-sm rounded-lg px-4 py-3">{error}</div>
           )}
 
-          {/* Basic info row */}
-          <div className="flex gap-4">
-            <label className="flex-[2] flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} required
-                placeholder="ex: D&D 5e"
-                className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
-            </label>
-            <label className="flex-1 flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
-              <input type="text" value={version} onChange={e => setVersion(e.target.value)}
-                placeholder="ex: 5.1"
-                className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
-            </label>
-          </div>
-
-          <div className="flex gap-4">
-            <label className="flex-1 flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
-              <select value={genre} onChange={e => setGenre(e.target.value)}
-                className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
-                           text-sm outline-none focus:border-vtt-green transition-colors cursor-pointer">
-                <option value="">Selecionar...</option>
-                {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </label>
-            <label className="flex-[2] flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
-              <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-                placeholder="Breve descrição do sistema..."
-                className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
-            </label>
-          </div>
-
-          {/* Builder section tabs */}
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-2 flex-wrap gap-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveBuilderTab('content')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${activeBuilderTab === 'content'
-                    ? 'bg-vtt-dark-green/40 text-vtt-light-green border border-vtt-green/40'
-                    : 'text-neutral-400 hover:text-vtt-light bg-vtt-dark-gray/30'
-                    }`}
-                >
-                  <span>📦 Campos por Tipo de Conteúdo</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                    {Object.values(contentFields).reduce((acc, f) => acc + (f?.length ?? 0), 0)}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveBuilderTab('character')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${activeBuilderTab === 'character'
-                    ? 'bg-vtt-dark-green/40 text-vtt-light-green border border-vtt-green/40'
-                    : 'text-neutral-400 hover:text-vtt-light bg-vtt-dark-gray/30'
-                    }`}
-                >
-                  <span>📑 Ficha de Personagem</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                    {groups.length}
-                  </span>
-                </button>
+          {/* SESSÃO 1: INFORMAÇÕES GERAIS */}
+          <section className="flex flex-col gap-5 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
+            <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
+              <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
+                <IconInfo />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Informações Gerais</h3>
               </div>
-
-              {activeBuilderTab === 'content' && (
-                <button
-                  type="button"
-                  onClick={loadAllPresets}
-                  className="flex items-center gap-1.5 text-xs text-vtt-light-green hover:underline cursor-pointer"
-                  title="Preencher todos os tipos de conteúdo com modelos padrão de D&D"
-                >
-                  ✨ Carregar Todos os Padrões D&D
-                </button>
-              )}
             </div>
 
-            {/* TAB: CONTENT FIELDS BY TYPE */}
-            {activeBuilderTab === 'content' && (
-              <div className="flex flex-col gap-4">
-                {/* Horizontal Content Types Selector */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-                  {CONTENT_TYPE_LIST.map(ct => {
-                    const count = (contentFields[ct.value] ?? []).length
-                    const isSelected = selectedContentType === ct.value
-                    return (
-                      <button
-                        key={ct.value}
-                        type="button"
-                        onClick={() => setSelectedContentType(ct.value)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border ${isSelected
-                          ? 'bg-vtt-green text-white border-vtt-green shadow-xs'
-                          : 'bg-vtt-dark-gray/40 border-vtt-dark-gray text-neutral-400 hover:text-vtt-light hover:bg-vtt-dark-gray'
-                          }`}
-                      >
-                        <span>{ct.emoji}</span>
-                        <span>{ct.label}</span>
-                        {count > 0 && (
-                          <span
-                            className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${isSelected ? 'bg-black/30 text-white' : 'bg-vtt-dark text-neutral-400'
-                              }`}
-                          >
-                            {count}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
+            <div className="flex gap-4">
+              <label className="flex-[2] flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                  placeholder="ex: D&D 5e"
+                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+              </label>
+              <label className="flex-1 flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
+                <input type="text" value={version} onChange={e => setVersion(e.target.value)}
+                  placeholder="ex: 5.1"
+                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+              </label>
+            </div>
+
+            <div className="flex gap-4">
+              <label className="flex-1 flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
+                <select value={genre} onChange={e => setGenre(e.target.value)}
+                  className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
+                             text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
+                  <option value="">Selecionar...</option>
+                  {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </label>
+              <label className="flex-[2] flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
+                <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+                  placeholder="Breve descrição do sistema..."
+                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+              </label>
+            </div>
+          </section>
+
+          {/* SESSÃO 2: ESTRUTURA DO SISTEMA (ABAS) */}
+          <section className="flex flex-col gap-4 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
+
+            <div className="flex items-center gap-3 mb-2 border-b border-vtt-dark-gray pb-3">
+              <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
+                <IconLayers />
+              </span>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Estrutura de Atributos</h3>
+              </div>
+            </div>
+
+            {/* Builder section tabs */}
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                <div className="flex gap-2 bg-vtt-dark-gray/30 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setActiveBuilderTab('content')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'content'
+                      ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
+                      : 'text-neutral-500 hover:text-vtt-light'
+                      }`}
+                  >
+                    <IconBox />
+                    <span>Tipos de Conteúdo</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                      {Object.values(contentFields).reduce((acc, f) => acc + (f?.length ?? 0), 0)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveBuilderTab('character')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'character'
+                      ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
+                      : 'text-neutral-500 hover:text-vtt-light'
+                      }`}
+                  >
+                    <IconCharacter />
+                    <span>Ficha de Personagem</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                      {groups.length}
+                    </span>
+                  </button>
                 </div>
+              </div>
 
-                {/* Selected Type Card */}
-                {(() => {
-                  const meta = CONTENT_TYPE_LIST.find(c => c.value === selectedContentType)!
-                  const currentFields = contentFields[selectedContentType] ?? []
-                  return (
-                    <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden flex flex-col gap-3 p-4">
-                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-vtt-dark-gray/60">
-                        <div>
-                          <h4 className="text-sm font-bold text-vtt-light flex items-center gap-2">
-                            <span>{meta.emoji}</span>
-                            <span>Campos Fixos de {meta.label}</span>
-                          </h4>
-                          <p className="text-xs text-neutral-400 mt-0.5">
-                            {meta.description}. Estes campos aparecerão automaticamente ao cadastrar um(a) {meta.singularLabel.toLowerCase()}.
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => loadDefaultPreset(selectedContentType)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green hover:bg-vtt-dark-green/60 transition-colors cursor-pointer"
-                          >
-                            ✨ Carregar Padrão D&D
-                          </button>
-                          {currentFields.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => clearContentFields(selectedContentType)}
-                              className="text-xs text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer px-2 py-1"
+              {/* TAB: CONTENT FIELDS BY TYPE */}
+              {activeBuilderTab === 'content' && (
+                <div className="flex flex-col gap-4 mt-2">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
+                    {CONTENT_TYPE_LIST.map(ct => {
+                      const count = (contentFields[ct.value] ?? []).length
+                      const isSelected = selectedContentType === ct.value
+                      return (
+                        <button
+                          key={ct.value}
+                          type="button"
+                          onClick={() => setSelectedContentType(ct.value)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 cursor-pointer border ${isSelected
+                            ? 'bg-vtt-golden/10 text-vtt-golden border-vtt-golden/30 shadow-sm'
+                            : 'bg-vtt-dark-gray/40 border-transparent text-neutral-400 hover:text-vtt-golden hover:bg-vtt-dark-gray'
+                            }`}
+                        >
+                          {/* O texto e ícone (se houver no futuro) do tipo de conteúdo */}
+                          <span>{ct.label}</span>
+
+                          {count > 0 && (
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${isSelected ? 'bg-vtt-golden/20 text-vtt-golden' : 'bg-vtt-dark text-neutral-400'
+                                }`}
                             >
-                              Limpar
-                            </button>
+                              {count}
+                            </span>
                           )}
-                        </div>
-                      </div>
+                        </button>
+                      )
+                    })}
+                  </div>
 
-                      {/* Field list for this type */}
-                      <div className="flex flex-col gap-2">
-                        {currentFields.length === 0 && (
-                          <div className="text-center py-6 text-neutral-500 text-xs border border-dashed border-vtt-dark-gray rounded-lg flex flex-col items-center gap-2">
-                            <p>Nenhum campo fixo definido para {meta.label} ainda.</p>
+                  {/* Selected Type Card */}
+                  {(() => {
+                    const meta = CONTENT_TYPE_LIST.find(c => c.value === selectedContentType)!
+                    const currentFields = contentFields[selectedContentType] ?? []
+                    return (
+                      <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden flex flex-col gap-3 p-4">
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-vtt-dark-gray/60">
+                          <div>
+                            <h4 className="text-sm font-bold text-vtt-golden flex items-center gap-2">
+                              <IconBox />
+                              <span>{meta.label}</span>
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => loadDefaultPreset(selectedContentType)}
-                              className="text-xs text-vtt-light-green underline cursor-pointer"
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-vtt-dark-gray hover:bg-neutral-700 transition-colors cursor-pointer text-vtt-golden"
                             >
-                              Clique aqui para carregar os campos padrão de D&D
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /></svg>
+                              Padrão D&D
                             </button>
+                            {currentFields.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => clearContentFields(selectedContentType)}
+                                className="text-xs text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer px-2 py-1"
+                              >
+                                Limpar
+                              </button>
+                            )}
                           </div>
-                        )}
-                        {currentFields.map((f, i) => (
-                          <FieldRow
-                            key={f.key ? `${f.key}-${i}` : String(i)}
-                            field={f}
-                            index={i}
-                            onUpdate={nf => updateContentField(i, nf)}
-                            onRemove={() => removeContentField(i)}
-                            onDragStart={handleContentFieldDragStart}
-                            onDragOver={handleContentFieldDragOver}
-                            onDragLeave={handleContentFieldDragLeave}
-                            onDrop={handleContentFieldDrop}
-                            onDragEnd={handleContentFieldDragEnd}
-                            isDragging={draggedContentField === i}
-                            isOver={overContentField === i}
-                          />
-                        ))}
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={addContentField}
-                          className="mt-1 flex items-center gap-1.5 text-xs text-vtt-green hover:text-vtt-light-green
-                                     transition-colors font-medium cursor-pointer w-fit"
-                        >
-                          <IconPlus /> Adicionar campo em {meta.singularLabel}
-                        </button>
+                        {/* Field list for this type */}
+                        <div className="flex flex-col gap-2">
+                          {currentFields.length === 0 && (
+                            <div className="text-center py-6 text-neutral-500 text-xs border border-dashed border-vtt-dark-gray rounded-lg flex flex-col items-center gap-2">
+                              <p>Nenhum campo fixo definido.</p>
+                              <button
+                                type="button"
+                                onClick={() => loadDefaultPreset(selectedContentType)}
+                                className="text-xs text-vtt-golden/80 hover:text-vtt-golden underline cursor-pointer"
+                              >
+                                Carregar campos padrão
+                              </button>
+                            </div>
+                          )}
+                          {currentFields.map((f, i) => (
+                            <FieldRow
+                              key={f.key ? `${f.key}-${i}` : String(i)}
+                              field={f}
+                              index={i}
+                              onUpdate={nf => updateContentField(i, nf)}
+                              onRemove={() => removeContentField(i)}
+                              onDragStart={handleContentFieldDragStart}
+                              onDragOver={handleContentFieldDragOver}
+                              onDragLeave={handleContentFieldDragLeave}
+                              onDrop={handleContentFieldDrop}
+                              onDragEnd={handleContentFieldDragEnd}
+                              isDragging={draggedContentField === i}
+                              isOver={overContentField === i}
+                            />
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={addContentField}
+                            className="mt-1 flex items-center gap-1.5 text-xs text-vtt-light hover:text-vtt-golden
+                                       transition-colors font-medium cursor-pointer w-fit"
+                          >
+                            <IconPlus /> Adicionar
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            )}
+                    )
+                  })()}
+                </div>
+              )}
 
-            {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
-            {activeBuilderTab === 'character' && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest">Grupos de Atributos da Ficha</h3>
-                    <p className="text-xs text-neutral-400 mt-0.5">Atributos principais do personagem (ex: Força, Destreza, Constituição).</p>
+              {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
+              {activeBuilderTab === 'character' && (
+                <div className="flex flex-col gap-4 mt-2">
+                  <div className="flex items-center justify-between">
+                    <button type="button" onClick={addGroup}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-vtt-golden hover:text-[#FBE8A6]
+                                 transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-golden/30
+                                 hover:border-vtt-golden bg-vtt-golden/10 hover:bg-vtt-golden/20 ml-auto">
+                      <IconPlus /> Novo Grupo
+                    </button>
                   </div>
-                  <button type="button" onClick={addGroup}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-vtt-green hover:text-vtt-light-green
-                               transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-green/40
-                               hover:border-vtt-green bg-vtt-dark-green/20 hover:bg-vtt-dark-green/40">
-                    <IconPlus /> Novo Grupo
-                  </button>
+
+                  {groups.length === 0 && (
+                    <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
+                      Nenhum grupo definido.
+                    </div>
+                  )}
+
+                  {groups.map((g, i) => (
+                    <GroupCard
+                      key={g.id || String(i)}
+                      group={g}
+                      index={i}
+                      onUpdate={ng => updateGroup(i, ng)}
+                      onRemove={() => removeGroup(i)}
+                      onDragStartGroup={handleGroupDragStart}
+                      onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
+                      onDragLeaveGroup={handleGroupDragLeave}
+                      onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
+                      onDragEndGroup={handleGroupDragEnd}
+                      isDraggingGroup={draggedGroupIndex === i}
+                      isOverGroup={overGroupIndex === i}
+                      onFieldDragStart={handleFieldDragStart}
+                      onFieldDragOver={handleFieldDragOver}
+                      onFieldDragLeave={handleFieldDragLeave}
+                      onFieldDrop={handleFieldDrop}
+                      onFieldDragEnd={handleFieldDragEnd}
+                      draggedFieldInfo={draggedGroupField}
+                      overFieldInfo={overGroupField}
+                      onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+          {/* SESSÃO 3: ZONA DE PERIGO (Só aparece ao editar um sistema existente) */}
+          {initial && (
+            <section className="flex flex-col gap-4 bg-red-950/10 p-6 rounded-xl border border-vtt-red/30 shadow-inner mt-4">
+
+              <div className="flex items-center gap-3 border-b border-vtt-red/20 pb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-red/20 text-vtt-red">
+                  <IconAlert />
+                </span>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-vtt-red uppercase tracking-widest flex items-center gap-2">
+                    Zona de Perigo
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h4 className="text-vtt-light text-sm font-semibold">Excluir este sistema</h4>
+                  {/* <p className="text-neutral-500 text-xs mt-1 max-w-md">
+                    Tem certeza? Essa ação é irreversível.
+                  </p> */}
                 </div>
 
-                {groups.length === 0 && (
-                  <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
-                    Nenhum grupo ainda. Clique em "Novo Grupo" para começar a definir os atributos da ficha.
-                  </div>
-                )}
-
-                {groups.map((g, i) => (
-                  <GroupCard
-                    key={g.id || String(i)}
-                    group={g}
-                    index={i}
-                    onUpdate={ng => updateGroup(i, ng)}
-                    onRemove={() => removeGroup(i)}
-                    onDragStartGroup={handleGroupDragStart}
-                    onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
-                    onDragLeaveGroup={handleGroupDragLeave}
-                    onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
-                    onDragEndGroup={handleGroupDragEnd}
-                    isDraggingGroup={draggedGroupIndex === i}
-                    isOverGroup={overGroupIndex === i}
-                    onFieldDragStart={handleFieldDragStart}
-                    onFieldDragOver={handleFieldDragOver}
-                    onFieldDragLeave={handleFieldDragLeave}
-                    onFieldDrop={handleFieldDrop}
-                    onFieldDragEnd={handleFieldDragEnd}
-                    draggedFieldInfo={draggedGroupField}
-                    overFieldInfo={overGroupField}
-                    onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
-                  />
-                ))}
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    // Lógica de confirmação inline (3 segundos para confirmar)
+                    if (!confirmDelete) {
+                      setConfirmDelete(true)
+                      setTimeout(() => setConfirmDelete(false), 3000)
+                      return
+                    }
+                    // Ação real de deletar
+                    setLoading(true)
+                    const res = await window.api.systems.delete(initial.id)
+                    if (!res.success) {
+                      setError(res.error ?? 'Erro ao excluir.')
+                      setLoading(false)
+                      return
+                    }
+                    onSaved() // Fecha o modal e atualiza a lista de trás
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 cursor-pointer whitespace-nowrap ${confirmDelete
+                    ? 'bg-vtt-red text-white shadow-[0_0_16px_rgba(211,47,47,0.5)] scale-105'
+                    : 'bg-transparent border border-vtt-red/50 text-vtt-red hover:bg-vtt-red hover:text-white'
+                    }`}
+                >
+                  {confirmDelete ? 'Tem certeza?!?' : 'Apagar Sistema'}
+                </button>
               </div>
-            )}
-          </div>
+            </section>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 px-8 py-5 border-t border-vtt-dark-gray shrink-0">
+        {/* Footer com Botões */}
+        <div className="flex gap-3 px-8 py-5 border-t border-vtt-dark-gray shrink-0 bg-vtt-dark sticky bottom-0 z-10 rounded-b-2xl">
           <button type="button" onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg border border-vtt-light-gray text-neutral-300 text-sm
+            className="flex-1 py-2.5 rounded-xl border border-vtt-light-gray text-neutral-300 text-sm
                        font-semibold hover:border-vtt-red hover:text-vtt-light transition-colors cursor-pointer">
             Cancelar
           </button>
           <button type="submit" disabled={loading}
-            className="flex-1 py-2.5 rounded-lg bg-vtt-green text-white text-sm font-semibold
-                       hover:bg-vtt-light-green transition-colors disabled:opacity-50 cursor-pointer">
+            className="flex-1 py-2.5 rounded-xl bg-vtt-green text-white text-sm font-semibold
+                       hover:bg-vtt-light-green transition-colors disabled:opacity-50 cursor-pointer shadow-lg shadow-vtt-green/20">
             {loading ? 'Salvando...' : initial ? 'Salvar Alterações' : 'Criar Sistema'}
           </button>
         </div>
@@ -1143,6 +1341,7 @@ export default function SystemsPage(): React.JSX.Element {
   const [systems, setSystems] = useState<RpgSystemFull[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [editing, setEditing] = useState<RpgSystemFull | undefined>(undefined)
   const [deleting, setDeleting] = useState<RpgSystemFull | undefined>(undefined)
 
@@ -1164,7 +1363,7 @@ export default function SystemsPage(): React.JSX.Element {
   const onSaved = (): void => { closeForm(); load() }
   const onDeleted = (): void => { setDeleting(undefined); load() }
 
-  // L�GICA DO FILTRO: Cria a lista filtrada baseada no estado 'search'
+  // L�GICA DO FILTRO: Cria a lista filtrada baseada no estado 'search'
   const filteredSystems = systems.filter((system) =>
     system.name.toLowerCase().includes(search.toLowerCase())
   )
@@ -1186,17 +1385,35 @@ export default function SystemsPage(): React.JSX.Element {
           </div>
         </div>
 
-        {/* BARRA DE BUSCA E BOT�O NOVO SISTEMA */}
+        {/* BARRA DE BUSCA E BOTÕES DE AÇÃO */}
         <div className="flex items-center justify-between mb-2">
           <FilterContent search={search} setSearch={setSearch} />
 
-          <button type="button" onClick={openCreate}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl
-                       bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green text-sm font-semibold 
-                       hover:bg-vtt-green hover:text-vtt-light transition-all duration-200 cursor-pointer
-                       hover:shadow-[0_0_24px_rgba(67,161,93,0.4)]">
-            <IconPlus /> Novo Sistema
-          </button>
+          {/* Wrapper para deixar os botões lado a lado */}
+          <div className="flex items-center gap-3">
+
+            {/* Botão de Importar Sistema (Golden) */}
+            <button
+              type="button"
+              onClick={() => setShowImport(true)}
+              className="flex items-center justify-center p-2.5 rounded-xl
+                         bg-vtt-dark border border-vtt-dark-gray text-vtt-light-gray 
+                         hover:bg-vtt-dark-gray/50 hover:text-vtt-golden hover:border-vtt-golden/50 
+                         transition-all duration-200 cursor-pointer shadow-md"
+              title="Importar Sistema"
+            >
+              <IconFileImport />
+            </button>
+
+            <button type="button" onClick={openCreate}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl
+                         bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green text-sm font-semibold 
+                         hover:bg-vtt-green hover:text-vtt-light transition-all duration-200 cursor-pointer
+                         hover:shadow-[0_0_24px_rgba(67,161,93,0.4)]">
+              <IconPlus /> Novo Sistema
+            </button>
+
+          </div>
         </div>
 
         <div className="w-full h-px bg-vtt-red mb-8" />
@@ -1228,7 +1445,7 @@ export default function SystemsPage(): React.JSX.Element {
               />
             ))}
 
-            {/* 5. FEEDBACK OPCIONAL SE N�O ACHAR NADA */}
+            {/* 5. FEEDBACK OPCIONAL SE N�O ACHAR NADA */}
             {filteredSystems.length === 0 && search !== '' && (
               <div className="col-span-full mt-8 flex justify-center w-full">
                 <p className="text-neutral-400">Nenhum sistema encontrado com "{search}".</p>
@@ -1254,6 +1471,10 @@ export default function SystemsPage(): React.JSX.Element {
           onClose={() => setDeleting(undefined)}
           onDeleted={onDeleted}
         />
+      )}
+
+      {showImport && (
+        <ImportModal onClose={() => setShowImport(false)} />
       )}
     </div>
   )
