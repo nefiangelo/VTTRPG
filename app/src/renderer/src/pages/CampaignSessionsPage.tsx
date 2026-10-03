@@ -415,18 +415,28 @@ export default function CampaignSessionsPage(): React.JSX.Element {
 
               {/* Actions for Active Session */}
               <div className='flex items-center gap-3'>
-                <button
-                  type='button'
-                  onClick={() => handleOpenEndModal(activeSession)}
-                  className='px-4 py-2 rounded-lg border border-red-700/60 text-red-300 text-sm font-semibold
-                             hover:bg-red-950 hover:border-red-500 transition-colors cursor-pointer'
-                >
-                  Encerrar Sessão
-                </button>
+                {isGM && (
+                  <button
+                    type='button'
+                    onClick={() => handleOpenEndModal(activeSession)}
+                    className='px-4 py-2 rounded-lg border border-red-700/60 text-red-300 text-sm font-semibold
+                               hover:bg-red-950 hover:border-red-500 transition-colors cursor-pointer'
+                  >
+                    Encerrar Sessão
+                  </button>
+                )}
 
                 <button
                   type='button'
-                  onClick={() => navigate(`/sessions/${activeSession.id}`)}
+                  onClick={() =>
+                    navigate(`/sessions/${activeSession.id}`, {
+                      state: {
+                        isPlayer: !isGM,
+                        serverUrl: activeSession.server_url || 'http://localhost:3001',
+                        accessCode: activeSession.access_code || ''
+                      }
+                    })
+                  }
                   className='flex items-center gap-2 px-5 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold
                              hover:bg-emerald-500 transition-colors cursor-pointer shadow-md'
                 >
@@ -605,16 +615,26 @@ export default function CampaignSessionsPage(): React.JSX.Element {
                       {/* Active Session Actions */}
                       {isActive && (
                         <>
+                          {isGM && (
+                            <button
+                              type='button'
+                              onClick={() => handleOpenEndModal(session)}
+                              className='px-3.5 py-2 rounded-lg border border-red-700/60 text-red-300 text-xs font-semibold hover:bg-red-950 transition-colors cursor-pointer'
+                            >
+                              Encerrar
+                            </button>
+                          )}
                           <button
                             type='button'
-                            onClick={() => handleOpenEndModal(session)}
-                            className='px-3.5 py-2 rounded-lg border border-red-700/60 text-red-300 text-xs font-semibold hover:bg-red-950 transition-colors cursor-pointer'
-                          >
-                            Encerrar
-                          </button>
-                          <button
-                            type='button'
-                            onClick={() => navigate(`/sessions/${session.id}`)}
+                            onClick={() =>
+                              navigate(`/sessions/${session.id}`, {
+                                state: {
+                                  isPlayer: !isGM,
+                                  serverUrl: session.server_url || 'http://localhost:3001',
+                                  accessCode: session.access_code || ''
+                                }
+                              })
+                            }
                             className='px-4 py-2 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 transition-colors cursor-pointer shadow'
                           >
                             Acessar Sala →
@@ -625,29 +645,37 @@ export default function CampaignSessionsPage(): React.JSX.Element {
                       {/* Scheduled Session Actions */}
                       {isScheduled && (
                         <>
-                          <button
-                            type='button'
-                            onClick={() => handleStartSession(session)}
-                            className='px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors cursor-pointer shadow flex items-center gap-1.5'
-                          >
-                            <span>▶</span>
-                            <span>Abrir / Iniciar</span>
-                          </button>
-                          <button
-                            type='button'
-                            onClick={() => handleOpenEditModal(session)}
-                            className='px-3 py-2 rounded-lg border border-vtt-light-gray text-neutral-300 text-xs font-semibold hover:text-white hover:border-neutral-400 transition-colors cursor-pointer'
-                          >
-                            Editar
-                          </button>
-                          <button
-                            type='button'
-                            onClick={() => setDeleteSessionModal(session)}
-                            className='px-3 py-2 rounded-lg border border-vtt-dark-gray text-neutral-400 text-xs hover:text-red-400 hover:border-red-900 transition-colors cursor-pointer'
-                            title='Excluir Sessão'
-                          >
-                            Excluir
-                          </button>
+                          {isGM ? (
+                            <>
+                              <button
+                                type='button'
+                                onClick={() => handleStartSession(session)}
+                                className='px-4 py-2 rounded-lg bg-emerald-700 text-white text-xs font-semibold hover:bg-emerald-600 transition-colors cursor-pointer shadow flex items-center gap-1.5'
+                              >
+                                <span>▶</span>
+                                <span>Abrir / Iniciar</span>
+                              </button>
+                              <button
+                                type='button'
+                                onClick={() => handleOpenEditModal(session)}
+                                className='px-3 py-2 rounded-lg border border-vtt-light-gray text-neutral-300 text-xs font-semibold hover:text-white hover:border-neutral-400 transition-colors cursor-pointer'
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type='button'
+                                onClick={() => setDeleteSessionModal(session)}
+                                className='px-3 py-2 rounded-lg border border-vtt-dark-gray text-neutral-400 text-xs hover:text-red-400 hover:border-red-900 transition-colors cursor-pointer'
+                                title='Excluir Sessão'
+                              >
+                                Excluir
+                              </button>
+                            </>
+                          ) : (
+                            <span className='text-xs text-neutral-500 italic py-2'>
+                              Aguardando abertura pelo Mestre
+                            </span>
+                          )}
                         </>
                       )}
 
@@ -656,33 +684,45 @@ export default function CampaignSessionsPage(): React.JSX.Element {
                         <>
                           <button
                             type='button'
-                            onClick={() => navigate(`/sessions/${session.id}`)}
+                            onClick={() =>
+                              navigate(`/sessions/${session.id}`, {
+                                state: {
+                                  isPlayer: !isGM,
+                                  serverUrl: session.server_url || 'http://localhost:3001',
+                                  accessCode: session.access_code || ''
+                                }
+                              })
+                            }
                             className='px-3.5 py-2 rounded-lg bg-vtt-dark-gray text-neutral-200 text-xs font-semibold hover:bg-vtt-light-gray transition-colors cursor-pointer'
                           >
                             Ver Sala
                           </button>
-                          <button
-                            type='button'
-                            onClick={() => handleReopenSession(session)}
-                            className='px-3.5 py-2 rounded-lg border border-amber-700/50 text-amber-300 text-xs font-semibold hover:bg-amber-950 transition-colors cursor-pointer'
-                          >
-                            Reabrir
-                          </button>
-                          <button
-                            type='button'
-                            onClick={() => handleOpenEditModal(session)}
-                            className='px-3 py-2 rounded-lg border border-vtt-light-gray text-neutral-300 text-xs font-semibold hover:text-white hover:border-neutral-400 transition-colors cursor-pointer'
-                          >
-                            Editar Notas
-                          </button>
-                          <button
-                            type='button'
-                            onClick={() => setDeleteSessionModal(session)}
-                            className='px-3 py-2 rounded-lg border border-vtt-dark-gray text-neutral-400 text-xs hover:text-red-400 hover:border-red-900 transition-colors cursor-pointer'
-                            title='Excluir Sessão'
-                          >
-                            Excluir
-                          </button>
+                          {isGM && (
+                            <>
+                              <button
+                                type='button'
+                                onClick={() => handleReopenSession(session)}
+                                className='px-3.5 py-2 rounded-lg border border-amber-700/50 text-amber-300 text-xs font-semibold hover:bg-amber-950 transition-colors cursor-pointer'
+                              >
+                                Reabrir
+                              </button>
+                              <button
+                                type='button'
+                                onClick={() => handleOpenEditModal(session)}
+                                className='px-3 py-2 rounded-lg border border-vtt-light-gray text-neutral-300 text-xs font-semibold hover:text-white hover:border-neutral-400 transition-colors cursor-pointer'
+                              >
+                                Editar Notas
+                              </button>
+                              <button
+                                type='button'
+                                onClick={() => setDeleteSessionModal(session)}
+                                className='px-3 py-2 rounded-lg border border-vtt-dark-gray text-neutral-400 text-xs hover:text-red-400 hover:border-red-900 transition-colors cursor-pointer'
+                                title='Excluir Sessão'
+                              >
+                                Excluir
+                              </button>
+                            </>
+                          )}
                         </>
                       )}
                     </div>

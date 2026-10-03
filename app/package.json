@@ -27,8 +27,12 @@
     "@types/react-router-dom": "^5.3.3",
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^13.0.3",
+    "cors": "^2.8.6",
     "electron-updater": "^6.3.9",
+    "express": "^5.2.1",
     "react-router-dom": "^7.18.4",
+    "socket.io": "^4.8.4",
+    "socket.io-client": "^4.8.4",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
@@ -37,6 +41,8 @@
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/better-sqlite3": "^9.6.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",

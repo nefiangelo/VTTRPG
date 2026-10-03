@@ -160,11 +160,24 @@ function runMigrations(db: Database.Database): void {
       started_at    TEXT,
       ended_at      TEXT,
       notes         TEXT,
+      access_code   TEXT,
       created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_sessions_campaign ON sessions(campaign_id);
   `)
+
+  try {
+    db.exec(`ALTER TABLE sessions ADD COLUMN access_code TEXT;`)
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`ALTER TABLE sessions ADD COLUMN server_url TEXT;`)
+  } catch {
+    // Column already exists
+  }
 
   // ── Session Messages ───────────────────────────────────────────────────────
   // One row per chat message. user_id = NULL for system/server events.

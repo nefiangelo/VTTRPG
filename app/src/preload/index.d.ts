@@ -70,6 +70,8 @@ export interface Session {
   started_at: string | null
   ended_at: string | null
   notes: string | null
+  access_code?: string | null
+  server_url?: string | null
   created_at: string
 }
 
@@ -185,6 +187,95 @@ export interface ContentResult {
   error?: string
 }
 
+/* -- Session Server & Network -------------------------------- */
+export interface ConnectedParticipant {
+  socketId: string
+  userId?: number
+  username: string
+  role: 'gm' | 'player' | 'observer'
+  joinedAt: string
+  pingMs?: number
+  downloadedContent?: boolean
+}
+
+export interface SessionServerStatus {
+  isRunning: boolean
+  sessionId?: number
+  campaignId?: number
+  port?: number
+  accessCode?: string
+  localAddresses?: string[]
+  participantsCount?: number
+  participants?: ConnectedParticipant[]
+}
+
+export interface ServerStartResult {
+  success: boolean
+  port?: number
+  accessCode?: string
+  localAddresses?: string[]
+  error?: string
+}
+
+export interface SessionBundleResult {
+  success: boolean
+  session: {
+    id: number
+    title: string | null
+    status: string
+    started_at: string | null
+    notes: string | null
+    access_code: string
+    server_url?: string | null
+  }
+  allSessions?: Array<{
+    id: number
+    title: string | null
+    status: string
+    started_at: string | null
+    notes: string | null
+    access_code?: string | null
+    server_url?: string | null
+  }>
+  campaign: {
+    id: number
+    title: string
+    description: string | null
+    status?: string
+    rpg_system_id?: number
+    owner_username?: string
+    members?: CampaignMember[]
+  }
+  system: RpgSystemFull | null
+  content: SystemContentEntry[]
+  stats: {
+    totalContentItems: number
+    attributeGroupsCount: number
+  }
+  serverTime?: string
+  error?: string
+}
+
+export interface ImportBundlePayload {
+  bundle: SessionBundleResult
+  userId: number
+  serverUrl?: string
+}
+
+export interface ImportBundleResult {
+  success: boolean
+  campaignId?: number
+  sessionId?: number
+  systemId?: number
+  stats?: {
+    importedSystem: boolean
+    importedContentCount: number
+    importedCampaign: boolean
+    importedSessionsCount: number
+  }
+  error?: string
+}
+
 /* -- Window API --------------------------------------------- */
 interface API {
   auth: {
@@ -207,6 +298,7 @@ interface API {
     end: (id: number, notes?: string) => Promise<SessionResult>
     reopen: (id: number) => Promise<SessionResult>
     delete: (id: number) => Promise<{ success: boolean; error?: string }>
+    importBundle: (payload: ImportBundlePayload) => Promise<ImportBundleResult>
   }
   systems: {
     getAll: () => Promise<RpgSystemFull[]>
@@ -220,6 +312,12 @@ interface API {
     create: (payload: CreateContentPayload) => Promise<ContentResult>
     update: (payload: UpdateContentPayload) => Promise<ContentResult>
     delete: (id: number) => Promise<{ success: boolean; error?: string }>
+  }
+  server: {
+    start: (sessionId: number, port?: number) => Promise<ServerStartResult>
+    stop: () => Promise<{ success: boolean }>
+    getStatus: () => Promise<SessionServerStatus>
+    getLocalIps: () => Promise<string[]>
   }
 }
 
