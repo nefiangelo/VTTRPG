@@ -615,6 +615,23 @@ export async function startSessionServer(
       }
     })
 
+    // Mestre encerra a sessão via socket
+    socket.on('session:end', (payload: { sessionId: number; campaignId?: number; notes?: string }) => {
+      io.to(`session_${activeSessionId}`).emit('session:ended', {
+        sessionId: payload.sessionId,
+        campaignId: payload.campaignId || activeCampaignId,
+        status: 'completed',
+        notes: payload.notes || 'Sessão encerrada pelo Mestre.',
+        ended_at: new Date().toISOString()
+      })
+      io.to(`session_${activeSessionId}`).emit('session:closed', {
+        sessionId: payload.sessionId,
+        campaignId: payload.campaignId || activeCampaignId,
+        status: 'completed',
+        message: 'O Mestre encerrou a sessão de jogo.'
+      })
+    })
+
     // Teste de Ping / Latência
     socket.on('session:ping', (payload: { timestamp: number }) => {
       const participant = participantsMap.get(socket.id)
@@ -764,11 +781,24 @@ export async function startSessionServer(
 /**
  * Encerra o servidor de sessão ativo
  */
-export async function stopSessionServer(): Promise<{ success: boolean }> {
+export async function stopSessionServer(endedInfo?: { sessionId?: number; notes?: string }): Promise<{ success: boolean }> {
   if (activeIo && activeSessionId) {
+    const sId = endedInfo?.sessionId || activeSessionId
+    activeIo.to(`session_${activeSessionId}`).emit('session:ended', {
+      sessionId: sId,
+      campaignId: activeCampaignId,
+      status: 'completed',
+      notes: endedInfo?.notes || 'Sessão encerrada pelo Mestre.',
+      ended_at: new Date().toISOString()
+    })
     activeIo.to(`session_${activeSessionId}`).emit('session:closed', {
+      sessionId: sId,
+      campaignId: activeCampaignId,
+      status: 'completed',
       message: 'O Mestre encerrou a sessão.'
     })
+    // Dá uma breve pausa para que os buffers de rede enviem o pacote antes de fechar os sockets
+    await new Promise((resolve) => setTimeout(resolve, 600))
     activeIo.close()
     activeIo = null
   }

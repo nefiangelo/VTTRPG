@@ -243,6 +243,12 @@ export default function GameSessionPage(): React.JSX.Element {
 
         if (isPlayer) {
           setIsPlayerMode(true)
+          if (sessionData.status === 'completed') {
+            addLog('Esta sessão já se encontra encerrada.', 'warn')
+            alert('Esta sessão já foi concluída e encerrada.')
+            navigate(`/campaigns/${campaignData?.id || sessionData.campaign_id}/sessions`)
+            return
+          }
           const targetUrl = locationState?.serverUrl || sessionData.server_url || 'http://localhost:3001'
           const targetCode = locationState?.accessCode || sessionData.access_code || ''
           setServerUrl(targetUrl)
@@ -441,11 +447,55 @@ export default function GameSessionPage(): React.JSX.Element {
       addLog(`💬 ${data.user.username}: ${data.text}`, 'chat')
     })
 
-    socket.on('session:closed', (data: { message?: string }) => {
-      addLog(`⚠️ Sessão encerrada: ${data.message || 'O Mestre encerrou a sessão.'}`, 'warn')
-      alert(data.message || 'A sessão de jogo foi encerrada pelo Mestre.')
-      navigate('/home')
-    })
+    const handleSessionEndedOrClosed = async (data: {
+      sessionId?: number
+      campaignId?: number
+      status?: string
+      notes?: string
+      ended_at?: string
+      message?: string
+    }) => {
+      const targetSessionId = data?.sessionId || sessionRef.current?.id
+      const targetCampaignId =
+        data?.campaignId || campaignRef.current?.id || sessionRef.current?.campaign_id
+
+      addLog(`⚠️ Sessão encerrada: ${data?.message || 'O Mestre encerrou a sessão de jogo.'}`, 'warn')
+
+      // Atualiza o SQLite local do jogador usando applySyncUpdate para persistir 'completed'
+      if (targetCampaignId && targetSessionId) {
+        try {
+          await window.api.sessions.applySyncUpdate(
+            {
+              campaignId: targetCampaignId,
+              sessions: [
+                {
+                  id: targetSessionId,
+                  status: 'completed',
+                  ended_at: data?.ended_at || new Date().toISOString(),
+                  notes: data?.notes || undefined,
+                  updated_at: new Date().toISOString()
+                }
+              ]
+            },
+            user?.id
+          )
+        } catch (e) {
+          console.error('Erro ao salvar status da sessão encerrada no SQLite local:', e)
+        }
+      }
+
+      setSession((prev) => (prev ? { ...prev, status: 'completed' } : null))
+      alert(data?.message || 'A sessão de jogo foi encerrada pelo Mestre.')
+
+      if (targetCampaignId) {
+        navigate(`/campaigns/${targetCampaignId}/sessions`)
+      } else {
+        navigate('/home')
+      }
+    }
+
+    socket.on('session:ended', handleSessionEndedOrClosed)
+    socket.on('session:closed', handleSessionEndedOrClosed)
 
     socket.on('session:error', (err: { message?: string }) => {
       addLog(`Erro de sessão: ${err.message || 'Código inválido'}`, 'warn')
@@ -526,7 +576,17 @@ export default function GameSessionPage(): React.JSX.Element {
       if (session) {
         await window.api.sessions.end(session.id, 'Sessão encerrada pelo Mestre.')
       }
-      await window.api.server.stop()
+      if (socketRef.current) {
+        socketRef.current.emit('session:end', {
+          sessionId: session?.id,
+          campaignId: campaign?.id || session?.campaign_id,
+          notes: 'Sessão encerrada pelo Mestre.'
+        })
+      }
+      await window.api.server.stop({
+        sessionId: session?.id,
+        notes: 'Sessão encerrada pelo Mestre.'
+      })
       addLog('Sessão encerrada e servidor finalizado.', 'info')
       setShowEndModal(false)
       navigate(`/campaigns/${campaign?.id || session?.campaign_id || ''}/sessions`)
@@ -535,6 +595,35 @@ export default function GameSessionPage(): React.JSX.Element {
       alert('Erro ao encerrar sessão.')
     } finally {
       setIsEnding(false)
+    }
+  }
+
+  // Jogador marca sessão como encerrada localmente se o servidor do Mestre estiver offline
+  const handlePlayerMarkSessionEnded = async () => {
+    const targetCampaignId = campaign?.id || session?.campaign_id
+    const targetSessionId = session?.id
+    if (targetCampaignId && targetSessionId) {
+      try {
+        await window.api.sessions.applySyncUpdate(
+          {
+            campaignId: targetCampaignId,
+            sessions: [
+              {
+                id: targetSessionId,
+                status: 'completed',
+                ended_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              }
+            ]
+          },
+          user?.id
+        )
+      } catch (err) {
+        console.error('Erro ao atualizar status local da sessão:', err)
+      }
+      navigate(`/campaigns/${targetCampaignId}/sessions`)
+    } else {
+      navigate('/home')
     }
   }
 
@@ -669,6 +758,30 @@ export default function GameSessionPage(): React.JSX.Element {
             <span>WebSocket: <strong className='text-emerald-400 font-mono'>Sincronizado</strong></span>
           </div>
         </div>
+
+        {/* Banner de Aviso de Conexão com Fallback de Encerramento (Jogador) */}
+        {isPlayerMode && connectionStatus === 'error' && (
+          <div className='bg-amber-950/80 border border-amber-600/70 text-amber-200 p-4 rounded-xl flex flex-wrap items-center justify-between gap-4 shadow-md'>
+            <div className='flex items-center gap-3'>
+              <span className='text-2xl'>⚠️</span>
+              <div>
+                <p className='font-bold text-amber-100'>Não foi possível conectar ao servidor da sessão.</p>
+                <p className='text-xs text-amber-300/80 mt-0.5'>
+                  O servidor do Mestre está inacessível ou a sessão já foi finalizada. Você pode atualizar o status desta sessão para concluída no seu histórico local.
+                </p>
+              </div>
+            </div>
+            <div className='flex items-center gap-3'>
+              <button
+                type='button'
+                onClick={handlePlayerMarkSessionEnded}
+                className='px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow'
+              >
+                Marcar como Encerrada e Sair
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── GRID SUPERIOR: CÓDIGO DE ACESSO & CONTEÚDO BAIXADO ───────────── */}
         <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>

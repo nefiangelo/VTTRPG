@@ -316,7 +316,7 @@ export interface ApplySyncPayload {
   campaign?: Partial<CampaignWithDetails>
   system?: RpgSystemFull | null
   content?: SystemContentEntry[]
-  sessions?: Session[]
+  sessions?: Array<Partial<Session> & { id: number; status?: string }>
   characters?: CharacterEntry[]
 }
 
@@ -407,7 +407,7 @@ interface API {
   }
   server: {
     start: (sessionId: number, port?: number) => Promise<ServerStartResult>
-    stop: () => Promise<{ success: boolean }>
+    stop: (endedInfo?: { sessionId?: number; notes?: string }) => Promise<{ success: boolean }>
     getStatus: () => Promise<SessionServerStatus>
     getLocalIps: () => Promise<string[]>
   }

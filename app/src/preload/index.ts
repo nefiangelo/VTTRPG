@@ -73,7 +73,7 @@ const api = {
 
   server: {
     start: (sessionId: number, port?: number) => ipcRenderer.invoke('server:start', sessionId, port),
-    stop: () => ipcRenderer.invoke('server:stop'),
+    stop: (endedInfo?: { sessionId?: number; notes?: string }) => ipcRenderer.invoke('server:stop', endedInfo),
     getStatus: () => ipcRenderer.invoke('server:getStatus'),
     getLocalIps: () => ipcRenderer.invoke('server:getLocalIps'),
   },

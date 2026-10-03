@@ -176,8 +176,8 @@ app.whenReady().then(() => {
   ipcMain.handle('server:start', (_e, sessionId: number, port?: number) =>
     startSessionServer(sessionId, port)
   )
-  ipcMain.handle('server:stop', () =>
-    stopSessionServer()
+  ipcMain.handle('server:stop', (_e, endedInfo?: { sessionId?: number; notes?: string }) =>
+    stopSessionServer(endedInfo)
   )
   ipcMain.handle('server:getStatus', () =>
     getSessionServerStatus()

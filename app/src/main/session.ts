@@ -376,8 +376,9 @@ export interface ApplySyncPayload {
   sessions?: Array<{
     id: number
     title?: string | null
-    status: string
+    status?: string
     started_at?: string | null
+    ended_at?: string | null
     notes?: string | null
     access_code?: string | null
     server_url?: string | null
@@ -860,10 +861,23 @@ export function applySessionSyncUpdate(payload: ApplySyncPayload, userId?: numbe
       // 4. Atualizar lista de sessões
       if (sessions && Array.isArray(sessions)) {
         for (const s of sessions) {
-          const sTitle = s.title || `Sessão #${s.id}`
-          const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(s.id) as
-            | { id: number }
+          const existing = db.prepare('SELECT * FROM sessions WHERE id = ?').get(s.id) as
+            | Session
             | undefined
+
+          const sTitle = s.title !== undefined && s.title !== null ? s.title : existing ? existing.title : `Sessão #${s.id}`
+          const sStatus = s.status || existing?.status || 'completed'
+          const sStartedAt = s.started_at !== undefined ? s.started_at : existing?.started_at || null
+          const sEndedAt =
+            s.ended_at !== undefined
+              ? s.ended_at
+              : sStatus === 'completed'
+                ? existing?.ended_at || new Date().toISOString()
+                : null
+          const sNotes = s.notes !== undefined ? s.notes : existing?.notes || null
+          const sAccessCode = s.access_code !== undefined ? s.access_code : existing?.access_code || null
+          const sServerUrl = s.server_url !== undefined ? s.server_url : existing?.server_url || null
+          const sUpdatedAt = s.updated_at || new Date().toISOString()
 
           if (existing) {
             db.prepare(`
@@ -871,35 +885,38 @@ export function applySessionSyncUpdate(payload: ApplySyncPayload, userId?: numbe
               SET title = ?,
                   status = ?,
                   started_at = ?,
+                  ended_at = ?,
                   notes = ?,
-                  access_code = COALESCE(?, access_code),
-                  server_url = COALESCE(?, server_url),
-                  updated_at = COALESCE(?, datetime('now'))
+                  access_code = ?,
+                  server_url = ?,
+                  updated_at = ?
               WHERE id = ?
             `).run(
               sTitle,
-              s.status,
-              s.started_at || null,
-              s.notes || null,
-              s.access_code || null,
-              s.server_url || null,
-              s.updated_at || null,
+              sStatus,
+              sStartedAt,
+              sEndedAt,
+              sNotes,
+              sAccessCode,
+              sServerUrl,
+              sUpdatedAt,
               existing.id
             )
           } else {
             db.prepare(`
-              INSERT INTO sessions (id, campaign_id, title, status, started_at, notes, access_code, server_url, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), COALESCE(?, datetime('now')))
+              INSERT INTO sessions (id, campaign_id, title, status, started_at, ended_at, notes, access_code, server_url, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?)
             `).run(
               s.id,
               campaignId,
               sTitle,
-              s.status,
-              s.started_at || null,
-              s.notes || null,
-              s.access_code || null,
-              s.server_url || null,
-              s.updated_at || null
+              sStatus,
+              sStartedAt,
+              sEndedAt,
+              sNotes,
+              sAccessCode,
+              sServerUrl,
+              sUpdatedAt
             )
           }
         }

@@ -151,6 +151,18 @@ export default function CampaignSessionsPage(): React.JSX.Element {
     try {
       const res = await window.api.sessions.end(endSessionModal.id, endNotes.trim() || undefined)
       if (res.success) {
+        // Encerra também o servidor se estiver rodando para esta sessão
+        try {
+          const status = await window.api.server.getStatus()
+          if (status.isRunning && status.sessionId === endSessionModal.id) {
+            await window.api.server.stop({
+              sessionId: endSessionModal.id,
+              notes: endNotes.trim() || undefined
+            })
+          }
+        } catch (serverErr) {
+          console.error('Erro ao verificar/parar servidor:', serverErr)
+        }
         setEndSessionModal(null)
         await loadData()
       } else {
@@ -161,6 +173,40 @@ export default function CampaignSessionsPage(): React.JSX.Element {
       setActionError('Erro ao encerrar sessão.')
     } finally {
       setEndLoading(false)
+    }
+  }
+
+  // Jogador marca sessão como encerrada em seu histórico local (caso o Mestre tenha encerrado enquanto offline)
+  const handlePlayerMarkAsCompleted = async (sessionToClose: Session) => {
+    if (!campaignId) return
+    const confirmed = window.confirm(
+      `Deseja marcar a "${sessionToClose.title || 'Sessão'}" como encerrada no seu histórico local?`
+    )
+    if (!confirmed) return
+
+    try {
+      const res = await window.api.sessions.applySyncUpdate(
+        {
+          campaignId,
+          sessions: [
+            {
+              id: sessionToClose.id,
+              status: 'completed',
+              ended_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            }
+          ]
+        },
+        user?.id
+      )
+      if (res.success) {
+        await loadData()
+      } else {
+        setActionError(res.error || 'Falha ao atualizar sessão no histórico local.')
+      }
+    } catch (err) {
+      console.error(err)
+      setActionError('Erro ao atualizar sessão no histórico.')
     }
   }
 
@@ -428,7 +474,7 @@ export default function CampaignSessionsPage(): React.JSX.Element {
 
               {/* Actions for Active Session */}
               <div className='flex items-center gap-3'>
-                {isGM && (
+                {isGM ? (
                   <button
                     type='button'
                     onClick={() => handleOpenEndModal(activeSession)}
@@ -436,6 +482,16 @@ export default function CampaignSessionsPage(): React.JSX.Element {
                                hover:bg-red-950 hover:border-red-500 transition-colors cursor-pointer'
                   >
                     Encerrar Sessão
+                  </button>
+                ) : (
+                  <button
+                    type='button'
+                    onClick={() => handlePlayerMarkAsCompleted(activeSession)}
+                    className='px-3.5 py-2 rounded-lg border border-neutral-600 hover:border-amber-500 text-neutral-300 hover:text-amber-200 text-xs font-semibold
+                               hover:bg-amber-950/40 transition-colors cursor-pointer'
+                    title='Se o Mestre já encerrou a sessão, conclua no seu histórico local'
+                  >
+                    Marcar como Encerrada
                   </button>
                 )}
 
@@ -628,13 +684,22 @@ export default function CampaignSessionsPage(): React.JSX.Element {
                       {/* Active Session Actions */}
                       {isActive && (
                         <>
-                          {isGM && (
+                          {isGM ? (
                             <button
                               type='button'
                               onClick={() => handleOpenEndModal(session)}
                               className='px-3.5 py-2 rounded-lg border border-red-700/60 text-red-300 text-xs font-semibold hover:bg-red-950 transition-colors cursor-pointer'
                             >
                               Encerrar
+                            </button>
+                          ) : (
+                            <button
+                              type='button'
+                              onClick={() => handlePlayerMarkAsCompleted(session)}
+                              className='px-3 py-1.5 rounded-lg border border-neutral-700 hover:border-amber-600 text-neutral-400 hover:text-amber-300 text-xs font-medium transition-colors cursor-pointer'
+                              title='Marcar como encerrada no histórico local'
+                            >
+                              Marcar Encerrada
                             </button>
                           )}
                           <button
