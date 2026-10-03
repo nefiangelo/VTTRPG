@@ -101,6 +101,253 @@ export function getSessionServerStatus(): SessionServerStatus {
   }
 }
 
+export interface SyncCheckPayload {
+  code: string
+  campaignId: number
+  campaignUpdatedAt?: string
+  systemId?: number
+  systemUpdatedAt?: string
+  sessions?: Array<{ id: number; updatedAt?: string; status: string; title?: string }>
+  characters?: Array<{
+    id?: number
+    name: string
+    avatar_url?: string | null
+    role?: 'pc' | 'npc' | 'enemy'
+    sheet_data?: Record<string, unknown> | string
+    updated_at: string
+  }>
+  userId?: number
+  username?: string
+}
+
+export interface SyncCheckResult {
+  success: boolean
+  isUpToDate: boolean
+  obsoleteElements: string[]
+  updatedData: {
+    campaign?: unknown
+    system?: unknown
+    content?: unknown[]
+    sessions?: unknown[]
+    characters?: unknown[]
+  }
+  playerCharactersAccepted: number
+  serverTime: string
+  error?: string
+}
+
+/**
+ * Realiza checagem de dados obsoletos entre o Mestre e o Jogador conectado.
+ * Se o jogador possuir fichas de personagem alteradas offline, atualiza a base do Mestre.
+ * Se o Mestre tiver atualizações de regras, sessões, campanhas ou fichas, envia para o jogador.
+ */
+export function performSyncCheck(payload: SyncCheckPayload): SyncCheckResult {
+  const cleanCode = (payload?.code || '').trim().toUpperCase()
+  if (!cleanCode || cleanCode !== activeCode) {
+    return {
+      success: false,
+      isUpToDate: true,
+      obsoleteElements: [],
+      updatedData: {},
+      playerCharactersAccepted: 0,
+      serverTime: new Date().toISOString(),
+      error: 'Código de sessão inválido ou incorreto.'
+    }
+  }
+
+  const currentSession = getSessionById(activeSessionId!)
+  if (!currentSession) {
+    return {
+      success: false,
+      isUpToDate: true,
+      obsoleteElements: [],
+      updatedData: {},
+      playerCharactersAccepted: 0,
+      serverTime: new Date().toISOString(),
+      error: 'Sessão ativa não encontrada.'
+    }
+  }
+
+  const campaign = getCampaignById(currentSession.campaign_id)
+  if (!campaign) {
+    return {
+      success: false,
+      isUpToDate: true,
+      obsoleteElements: [],
+      updatedData: {},
+      playerCharactersAccepted: 0,
+      serverTime: new Date().toISOString(),
+      error: 'Campanha não encontrada.'
+    }
+  }
+
+  const db = getDb()
+  const obsoleteElements: string[] = []
+  const updatedData: SyncCheckResult['updatedData'] = {}
+  let playerCharactersAccepted = 0
+
+  // 1. Checagem da Campanha
+  if (payload.campaignUpdatedAt) {
+    const playerCampTime = new Date(payload.campaignUpdatedAt).getTime()
+    const gmCampTime = new Date(campaign.updated_at).getTime()
+    if (gmCampTime > playerCampTime) {
+      obsoleteElements.push('Campanha')
+      updatedData.campaign = {
+        id: campaign.id,
+        title: campaign.title,
+        description: campaign.description,
+        status: campaign.status,
+        updated_at: campaign.updated_at
+      }
+    }
+  }
+
+  // 2. Checagem do Sistema e Catálogo de Regras
+  const system = getRpgSystemById(campaign.rpg_system_id)
+  if (system) {
+    let systemNeedsUpdate = false
+    if (!payload.systemId || payload.systemId !== system.id) {
+      systemNeedsUpdate = true
+    } else if (payload.systemUpdatedAt) {
+      const playerSysTime = new Date(payload.systemUpdatedAt).getTime()
+      const gmSysTime = new Date(system.updated_at).getTime()
+      if (gmSysTime > playerSysTime) {
+        systemNeedsUpdate = true
+      }
+    }
+
+    if (systemNeedsUpdate) {
+      obsoleteElements.push('Sistema RPG')
+      updatedData.system = system
+      updatedData.content = getSystemContent(system.id)
+    }
+  }
+
+  // 3. Checagem de Sessões
+  const allSessions = getSessionsByCampaign(campaign.id)
+  let sessionsNeedUpdate = false
+  if (!payload.sessions || payload.sessions.length !== allSessions.length) {
+    sessionsNeedUpdate = true
+  } else {
+    for (const gmSess of allSessions) {
+      const playerSess = payload.sessions.find(s => s.id === gmSess.id)
+      if (!playerSess || playerSess.status !== gmSess.status) {
+        sessionsNeedUpdate = true
+        break
+      }
+      if (gmSess.updated_at && playerSess.updatedAt) {
+        if (new Date(gmSess.updated_at).getTime() > new Date(playerSess.updatedAt).getTime()) {
+          sessionsNeedUpdate = true
+          break
+        }
+      }
+    }
+  }
+
+  if (sessionsNeedUpdate) {
+    obsoleteElements.push('Sessões')
+    updatedData.sessions = allSessions.map(s => ({
+      ...s,
+      access_code: s.id === currentSession.id ? activeCode : s.access_code
+    }))
+  }
+
+  // 4. Checagem Bidirecional de Fichas de Personagens (Fichas editadas offline pelo jogador)
+  const charactersToSendToPlayer: unknown[] = []
+  if (payload.characters && Array.isArray(payload.characters)) {
+    for (const char of payload.characters) {
+      if (!char.name) continue
+      const existing = db
+        .prepare('SELECT * FROM characters WHERE campaign_id = ? AND name = ?')
+        .get(campaign.id, char.name.trim()) as Record<string, unknown> | undefined
+
+      const sheetStr =
+        typeof char.sheet_data === 'string'
+          ? char.sheet_data
+          : JSON.stringify(char.sheet_data ?? {})
+
+      if (!existing) {
+        // Personagem novo criado offline pelo jogador: GM aceita e armazena na sua base
+        try {
+          db.prepare(`
+            INSERT INTO characters (campaign_id, user_id, name, avatar_url, role, sheet_data, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), ?)
+          `).run(
+            campaign.id,
+            payload.userId || 1,
+            char.name.trim(),
+            char.avatar_url || null,
+            char.role || 'pc',
+            sheetStr,
+            char.updated_at || new Date().toISOString()
+          )
+          playerCharactersAccepted++
+        } catch (e) {
+          console.error('Erro ao salvar personagem offline do jogador no GM:', e)
+        }
+      } else {
+        const playerCharTime = new Date(char.updated_at).getTime()
+        const gmCharTime = new Date(existing.updated_at as string).getTime()
+
+        if (playerCharTime > gmCharTime) {
+          // Jogador alterou sua ficha offline mais recentemente: GM atualiza os dados
+          try {
+            db.prepare(`
+              UPDATE characters
+              SET sheet_data = ?,
+                  role = ?,
+                  avatar_url = COALESCE(?, avatar_url),
+                  updated_at = ?
+              WHERE id = ?
+            `).run(
+              sheetStr,
+              char.role || 'pc',
+              char.avatar_url || null,
+              char.updated_at,
+              existing.id
+            )
+            playerCharactersAccepted++
+          } catch (e) {
+            console.error('Erro ao atualizar personagem offline no GM:', e)
+          }
+        } else if (gmCharTime > playerCharTime) {
+          // Mestre tem versão mais recente da ficha: envia ao jogador para atualizar
+          charactersToSendToPlayer.push(existing)
+        }
+      }
+    }
+  }
+
+  // Se o Mestre possui fichas de personagens da campanha que o jogador não tem localmente:
+  try {
+    const allGmChars = db.prepare('SELECT * FROM characters WHERE campaign_id = ?').all(campaign.id) as Record<string, unknown>[]
+    for (const gmChar of allGmChars) {
+      const foundInPlayer = (payload.characters || []).some(
+        c => c.name?.trim().toLowerCase() === String(gmChar.name).trim().toLowerCase()
+      )
+      if (!foundInPlayer && !charactersToSendToPlayer.some((c: any) => c.id === gmChar.id)) {
+        charactersToSendToPlayer.push(gmChar)
+      }
+    }
+  } catch (e) {
+    console.error('Erro ao checar personagens do GM:', e)
+  }
+
+  if (charactersToSendToPlayer.length > 0) {
+    obsoleteElements.push('Fichas de Personagem')
+    updatedData.characters = charactersToSendToPlayer
+  }
+
+  return {
+    success: true,
+    isUpToDate: obsoleteElements.length === 0,
+    obsoleteElements,
+    updatedData,
+    playerCharactersAccepted,
+    serverTime: new Date().toISOString()
+  }
+}
+
 /**
  * Inicia o servidor Node.js Express + Socket.io para a sessão do mestre
  */
@@ -205,6 +452,14 @@ export async function startSessionServer(
       }
     }
 
+    const db = getDb()
+    let campaignCharacters: unknown[] = []
+    try {
+      campaignCharacters = db.prepare('SELECT * FROM characters WHERE campaign_id = ?').all(campaign.id)
+    } catch (e) {
+      console.error('Erro ao carregar personagens para bundle:', e)
+    }
+
     return res.json({
       success: true,
       session: {
@@ -244,12 +499,19 @@ export async function startSessionServer(
           }
         : null,
       content: content,
+      characters: campaignCharacters,
       stats: {
         totalContentItems: content.length,
         attributeGroupsCount: system?.structure?.attributeGroups?.length || 0
       },
       serverTime: new Date().toISOString()
     })
+  })
+
+  // Checagem e Sincronização de Dados Obsoletos (HTTP)
+  app.post('/api/session/sync-check', (req, res) => {
+    const result = performSyncCheck(req.body)
+    return res.status(result.success ? 200 : 400).json(result)
   })
 
   // Cliente Web Integrado para Navegador (permite que jogadores conectem via navegador na rede/localhost)
@@ -336,6 +598,22 @@ export async function startSessionServer(
         })
       }
     )
+
+    // Checagem e sincronização de dados obsoletos ao conectar/reconectar
+    socket.on('session:sync_check', (payload: SyncCheckPayload) => {
+      const result = performSyncCheck(payload)
+      socket.emit('session:sync_result', result)
+
+      if (result.playerCharactersAccepted > 0 && activeSessionId) {
+        io.to(`session_${activeSessionId}`).emit('session:chat_received', {
+          id: `sync_${Date.now()}`,
+          user: { username: payload?.username || 'Sistema', role: 'system' },
+          text: `Ficha de personagem sincronizada com o Mestre.`,
+          type: 'system',
+          timestamp: new Date().toISOString()
+        })
+      }
+    })
 
     // Teste de Ping / Latência
     socket.on('session:ping', (payload: { timestamp: number }) => {

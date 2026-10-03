@@ -8,7 +8,10 @@ import type {
   RpgSystemFull,
   SystemContentEntry,
   ConnectedParticipant,
-  SessionBundleResult
+  SessionBundleResult,
+  CharacterEntry,
+  SyncCheckPayload,
+  SyncCheckResult
 } from '../../../preload/index.d'
 
 interface LogEntry {
@@ -41,6 +44,11 @@ export default function GameSessionPage(): React.JSX.Element {
   const [campaign, setCampaign] = useState<CampaignWithDetails | null>(locationState?.downloadedBundle?.campaign as CampaignWithDetails || null)
   const [system, setSystem] = useState<RpgSystemFull | null>(locationState?.downloadedBundle?.system || null)
   const [contentList, setContentList] = useState<SystemContentEntry[]>(locationState?.downloadedBundle?.content || [])
+  const [characters, setCharacters] = useState<CharacterEntry[]>([])
+
+  // Sincronização entre Jogador e GM
+  const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'up-to-date' | 'updated' | 'error'>('idle')
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
 
   // Servidor & Conexão
   const [serverPort, setServerPort] = useState<number>(3001)
@@ -64,9 +72,17 @@ export default function GameSessionPage(): React.JSX.Element {
   const [showEndModal, setShowEndModal] = useState(false)
   const [isEnding, setIsEnding] = useState(false)
 
-  // Referência do Socket
+  // Referências para valores atualizados em callbacks assíncronos do socket
   const socketRef = useRef<Socket | null>(null)
   const logBoxRef = useRef<HTMLDivElement | null>(null)
+  const campaignRef = useRef(campaign)
+  campaignRef.current = campaign
+  const systemRef = useRef(system)
+  systemRef.current = system
+  const sessionRef = useRef(session)
+  sessionRef.current = session
+  const accessCodeRef = useRef(accessCode)
+  accessCodeRef.current = accessCode
 
   // Adiciona entrada ao log do console da sessão
   const addLog = useCallback((message: string, type: LogEntry['type'] = 'info') => {
@@ -94,6 +110,64 @@ export default function GameSessionPage(): React.JSX.Element {
     }
   }, [logs])
 
+  // Função para checar e sincronizar dados com o Mestre
+  const runSyncCheck = useCallback(async (customSocket?: Socket) => {
+    const activeSocket = customSocket || socketRef.current
+    if (!activeSocket || !activeSocket.connected) {
+      addLog('Socket não conectado. Não é possível verificar sincronização no momento.', 'warn')
+      return
+    }
+
+    const curCampaign = campaignRef.current
+    if (!curCampaign) {
+      addLog('Dados locais da campanha ainda não carregados.', 'warn')
+      return
+    }
+
+    setSyncStatus('syncing')
+    addLog('🔍 Verificando integridade e sincronização de dados com o Mestre...', 'info')
+
+    try {
+      const curSystem = systemRef.current
+      const [localChars, localSessions] = await Promise.all([
+        window.api.characters.getByCampaign(curCampaign.id),
+        window.api.sessions.getByCampaign(curCampaign.id)
+      ])
+
+      if (localChars) setCharacters(localChars)
+
+      const payload: SyncCheckPayload = {
+        code: accessCodeRef.current,
+        campaignId: curCampaign.id,
+        campaignUpdatedAt: curCampaign.created_at,
+        systemId: curSystem?.id,
+        systemUpdatedAt: curSystem?.updated_at,
+        sessions: (localSessions || []).map(s => ({
+          id: s.id,
+          updatedAt: s.updated_at || s.created_at,
+          status: s.status,
+          title: s.title || undefined
+        })),
+        characters: (localChars || []).map(c => ({
+          id: c.id,
+          name: c.name,
+          avatar_url: c.avatar_url,
+          role: c.role,
+          sheet_data: c.sheet_data,
+          updated_at: c.updated_at
+        })),
+        userId: user?.id,
+        username: user?.username
+      }
+
+      activeSocket.emit('session:sync_check', payload)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      addLog(`Erro ao preparar verificação de sincronização: ${msg}`, 'warn')
+      setSyncStatus('error')
+    }
+  }, [user, addLog])
+
   // Inicialização e Conexão
   useEffect(() => {
     let isCancelled = false
@@ -108,6 +182,13 @@ export default function GameSessionPage(): React.JSX.Element {
         setSystem(bundle.system)
         setContentList(bundle.content)
         setAccessCode(bundle.session.access_code)
+
+        // Carrega fichas locais da campanha baixada
+        if (bundle.campaign?.id) {
+          window.api.characters.getByCampaign(bundle.campaign.id).then(chars => {
+            if (!isCancelled && chars) setCharacters(chars)
+          })
+        }
 
         const targetUrl = locationState.serverUrl || 'http://localhost:3001'
         setServerUrl(targetUrl)
@@ -142,6 +223,11 @@ export default function GameSessionPage(): React.JSX.Element {
         const campaignData = await window.api.campaigns.getById(sessionData.campaign_id)
         if (campaignData) {
           setCampaign(campaignData)
+
+          // Carrega fichas vinculadas à campanha
+          const chars = await window.api.characters.getByCampaign(campaignData.id)
+          if (!isCancelled && chars) setCharacters(chars)
+
           if (campaignData.rpg_system_id) {
             const systemData = await window.api.systems.getById(campaignData.rpg_system_id)
             if (systemData) {
@@ -244,6 +330,79 @@ export default function GameSessionPage(): React.JSX.Element {
     socket.on('session:joined', (data: { participant: ConnectedParticipant; participants: ConnectedParticipant[] }) => {
       addLog(`Registrado na sala da sessão como [${role.toUpperCase()}].`, 'success')
       setParticipants(data.participants || [])
+
+      // Se for jogador, executa checagem de sincronização automática com o Mestre
+      if (role === 'player') {
+        setTimeout(() => {
+          runSyncCheck(socket)
+        }, 600)
+      }
+    })
+
+    // Resposta de sincronização recebida do Mestre
+    socket.on('session:sync_result', async (data: SyncCheckResult) => {
+      const now = new Intl.DateTimeFormat('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      }).format(new Date())
+      setLastSyncTime(now)
+
+      if (!data.success) {
+        addLog(`⚠️ Erro na sincronização: ${data.error || 'Falha no servidor do Mestre'}`, 'warn')
+        setSyncStatus('error')
+        return
+      }
+
+      if (data.isUpToDate) {
+        addLog('✓ Todos os dados locais estão atualizados com o Mestre.', 'success')
+        setSyncStatus('up-to-date')
+        return
+      }
+
+      addLog(`🔄 Dados obsoletos detectados (${data.obsoleteElements.join(', ')}). Sincronizando com o Mestre...`, 'info')
+
+      try {
+        const targetCampaignId = campaignRef.current?.id || session?.campaign_id || 0
+        const applyRes = await window.api.sessions.applySyncUpdate({
+          campaignId: targetCampaignId,
+          ...data.updatedData
+        }, user?.id)
+        if (!applyRes.success) {
+          addLog(`⚠️ Falha ao salvar dados sincronizados no banco local: ${applyRes.error}`, 'warn')
+          setSyncStatus('error')
+          return
+        }
+
+        // Atualiza estados locais do React
+        if (data.updatedData.campaign) {
+          setCampaign(prev => prev ? ({ ...prev, ...data.updatedData.campaign }) : (data.updatedData.campaign as CampaignWithDetails))
+        }
+        if (data.updatedData.system) {
+          setSystem(data.updatedData.system)
+        }
+        if (data.updatedData.content) {
+          setContentList(data.updatedData.content)
+        }
+        if (data.updatedData.sessions && data.updatedData.sessions.length > 0) {
+          const active = data.updatedData.sessions.find(s => s.id === sessionRef.current?.id) || data.updatedData.sessions[0]
+          if (active) setSession(active)
+        }
+        if (data.updatedData.characters) {
+          setCharacters(data.updatedData.characters)
+        }
+
+        if (data.playerCharactersAccepted > 0) {
+          addLog(`✓ ${data.playerCharactersAccepted} ficha(s) alterada(s) offline foram salvas pelo Mestre!`, 'success')
+        }
+
+        addLog(`✓ Sincronização concluída com sucesso! Atualizados: ${data.obsoleteElements.join(', ')}`, 'success')
+        setSyncStatus('updated')
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        addLog(`Erro ao aplicar sincronização: ${msg}`, 'warn')
+        setSyncStatus('error')
+      }
     })
 
     socket.on('session:participants_changed', (data: {
@@ -428,21 +587,46 @@ export default function GameSessionPage(): React.JSX.Element {
 
         {/* Lado Direito: Status da Conexão, Papel e Botões */}
         <div className='flex items-center gap-4'>
+          {/* Status de Sincronização (Jogador) */}
+          {isPlayerMode && (
+            <button
+              type='button'
+              onClick={() => runSyncCheck()}
+              disabled={!isConnected || syncStatus === 'syncing'}
+              className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border ${syncStatus === 'syncing'
+                ? 'bg-amber-950/60 text-amber-300 border-amber-700/60 animate-pulse'
+                : syncStatus === 'updated' || syncStatus === 'up-to-date'
+                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/80'
+                  : 'bg-vtt-dark-gray text-neutral-300 border-vtt-light-gray/40 hover:text-white'
+                }`}
+              title={lastSyncTime ? `Última sincronização: ${lastSyncTime}. Clique para sincronizar agora.` : 'Clique para verificar e atualizar dados com o Mestre'}
+            >
+              <span>{syncStatus === 'syncing' ? '⏳' : syncStatus === 'updated' || syncStatus === 'up-to-date' ? '✓' : '🔄'}</span>
+              <span>
+                {syncStatus === 'syncing'
+                  ? 'Sincronizando...'
+                  : syncStatus === 'updated'
+                    ? 'Dados Atualizados'
+                    : syncStatus === 'up-to-date'
+                      ? 'Sincronizado'
+                      : 'Sincronizar'}
+              </span>
+            </button>
+          )}
+
           {/* Badge de Papel */}
-          <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${
-            !isPlayerMode
-              ? 'bg-red-950/80 text-red-300 border border-red-700/60'
-              : 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60'
-          }`}>
+          <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${!isPlayerMode
+            ? 'bg-red-950/80 text-red-300 border border-red-700/60'
+            : 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60'
+            }`}>
             <span>{!isPlayerMode ? '👑' : '🛡️'}</span>
             <span>{!isPlayerMode ? 'Mestre (Host)' : 'Jogador'}</span>
           </div>
 
           {/* Status Socket.io */}
           <div className='flex items-center gap-2 px-3 py-1 rounded-full bg-vtt-dark-gray border border-vtt-light-gray/40 text-xs'>
-            <span className={`w-2 h-2 rounded-full ${
-              isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'
-            }`}></span>
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'
+              }`}></span>
             <span className={isConnected ? 'text-emerald-300 font-medium' : 'text-neutral-400'}>
               {connectionStatus === 'connected' ? 'Socket.io Conectado' : connectionStatus === 'connecting' ? 'Conectando...' : 'Desconectado'}
             </span>
@@ -646,11 +830,53 @@ export default function GameSessionPage(): React.JSX.Element {
                   )}
                 </div>
               </div>
+
+              {/* Fichas de Personagem da Campanha */}
+              <div className='mt-3.5 pt-3 border-t border-vtt-light-gray/30'>
+                <div className='flex items-center justify-between text-xs text-neutral-400 mb-2'>
+                  <span className='flex items-center gap-1.5 font-medium'>
+                    <span>📜</span>
+                    <span>Fichas de Personagem da Campanha:</span>
+                  </span>
+                  <div className='flex items-center gap-2'>
+                    <strong className='text-white'>{characters.length} ficha(s)</strong>
+                    {isPlayerMode && (
+                      <span className='text-[10px] text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded'>
+                        Sincronizável
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {characters.length > 0 ? (
+                  <div className='flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1'>
+                    {characters.map(char => (
+                      <div
+                        key={char.id}
+                        className='px-2.5 py-1.5 rounded-lg bg-vtt-dark-gray/60 border border-vtt-light-gray/30 flex items-center gap-2 text-xs'
+                      >
+                        <span className={`w-2 h-2 rounded-full ${char.role === 'pc' ? 'bg-cyan-400' : 'bg-amber-400'}`} />
+                        <span className='font-medium text-white truncate max-w-[120px]'>{char.name}</span>
+                        <span className='text-[10px] text-neutral-400 uppercase font-mono'>
+                          {char.role === 'pc' ? 'PJ' : char.role === 'npc' ? 'NPC' : 'Inimigo'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className='text-xs text-neutral-500 italic'>Nenhuma ficha de personagem vinculada no momento.</p>
+                )}
+              </div>
             </div>
 
             <div className='pt-3 border-t border-vtt-light-gray/30 text-[11px] text-neutral-400 flex items-center justify-between'>
-              <span>Sincronização: Express HTTP /api/session/bundle</span>
-              <span className='text-emerald-400 font-medium'>Integridade Verificada</span>
+              <span>Sincronização: Express HTTP & Socket.io</span>
+              <div className='flex items-center gap-2'>
+                {lastSyncTime && (
+                  <span className='text-neutral-500 text-[10px]'>Checado às {lastSyncTime}</span>
+                )}
+                <span className='text-emerald-400 font-medium'>✓ Integridade Ativa</span>
+              </div>
             </div>
           </section>
         </div>
@@ -677,16 +903,14 @@ export default function GameSessionPage(): React.JSX.Element {
                 return (
                   <div
                     key={p.socketId}
-                    className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                      isGM
-                        ? 'bg-red-950/20 border-red-800/50'
-                        : 'bg-vtt-dark-gray/60 border-vtt-light-gray/40'
-                    }`}
+                    className={`p-3 rounded-xl border flex items-center justify-between transition-all ${isGM
+                      ? 'bg-red-950/20 border-red-800/50'
+                      : 'bg-vtt-dark-gray/60 border-vtt-light-gray/40'
+                      }`}
                   >
                     <div className='flex items-center gap-3'>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${
-                        isGM ? 'bg-red-900/80 text-red-200' : 'bg-emerald-900/80 text-emerald-200'
-                      }`}>
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${isGM ? 'bg-red-900/80 text-red-200' : 'bg-emerald-900/80 text-emerald-200'
+                        }`}>
                         {isGM ? 'GM' : p.username.slice(0, 2).toUpperCase()}
                       </div>
 
@@ -748,7 +972,7 @@ export default function GameSessionPage(): React.JSX.Element {
             </div>
 
             {/* Botões de Ação de Teste */}
-            <div className='grid grid-cols-2 sm:grid-cols-4 gap-2.5'>
+            <div className='grid grid-cols-2 sm:grid-cols-5 gap-2.5'>
               <button
                 type='button'
                 onClick={handleTestPing}
@@ -758,6 +982,18 @@ export default function GameSessionPage(): React.JSX.Element {
                 <span>📡</span>
                 <span>Testar Ping</span>
               </button>
+
+              {isPlayerMode && (
+                <button
+                  type='button'
+                  onClick={() => runSyncCheck()}
+                  disabled={!isConnected || syncStatus === 'syncing'}
+                  className='px-3 py-2 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 border border-cyan-700/70 text-cyan-200 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5'
+                >
+                  <span>🔄</span>
+                  <span>{syncStatus === 'syncing' ? 'Checando...' : 'Sincronizar'}</span>
+                </button>
+              )}
 
               <button
                 type='button'
@@ -798,17 +1034,16 @@ export default function GameSessionPage(): React.JSX.Element {
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  className={`leading-relaxed break-words ${
-                    log.type === 'success'
-                      ? 'text-emerald-400'
-                      : log.type === 'warn'
+                  className={`leading-relaxed break-words ${log.type === 'success'
+                    ? 'text-emerald-400'
+                    : log.type === 'warn'
                       ? 'text-amber-400'
                       : log.type === 'dice'
-                      ? 'text-purple-300 font-bold'
-                      : log.type === 'chat'
-                      ? 'text-cyan-300'
-                      : 'text-neutral-400'
-                  }`}
+                        ? 'text-purple-300 font-bold'
+                        : log.type === 'chat'
+                          ? 'text-cyan-300'
+                          : 'text-neutral-400'
+                    }`}
                 >
                   <span className='text-neutral-600 mr-2'>[{log.time}]</span>
                   <span>{log.message}</span>

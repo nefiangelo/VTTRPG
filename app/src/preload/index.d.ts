@@ -22,6 +22,8 @@ export interface Campaign {
   status: 'active' | 'paused' | 'finished'
   rpg_system_id: number
   owner_id: number
+  is_downloaded?: boolean | number
+  my_role?: 'gm' | 'player' | 'observer'
   created_at: string
   updated_at: string
 }
@@ -44,6 +46,7 @@ export interface RpgSystem {
   name: string
   slug: string
   genre: string | null
+  is_downloaded?: boolean
 }
 
 export interface CampaignMember {
@@ -73,6 +76,7 @@ export interface Session {
   access_code?: string | null
   server_url?: string | null
   created_at: string
+  updated_at?: string
 }
 
 export interface SessionResult {
@@ -124,6 +128,7 @@ export interface RpgSystemFull {
   description: string | null
   structure: SystemStructure
   created_by: number | null
+  is_downloaded?: boolean
   created_at: string
   updated_at: string
 }
@@ -276,6 +281,86 @@ export interface ImportBundleResult {
   error?: string
 }
 
+/* -- Characters / Fichas de Personagem ----------------------- */
+export interface CharacterEntry {
+  id: number
+  campaign_id: number
+  user_id: number
+  name: string
+  avatar_url?: string | null
+  role: 'pc' | 'npc' | 'enemy'
+  sheet_data: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface SaveCharacterPayload {
+  id?: number
+  campaign_id: number
+  user_id: number
+  name: string
+  avatar_url?: string | null
+  role?: 'pc' | 'npc' | 'enemy'
+  sheet_data?: Record<string, unknown> | string
+}
+
+export interface CharacterResult {
+  success: boolean
+  character?: CharacterEntry
+  error?: string
+}
+
+/* -- Sincronização entre GM e Jogador ----------------------- */
+export interface ApplySyncPayload {
+  campaignId: number
+  campaign?: Partial<CampaignWithDetails>
+  system?: RpgSystemFull | null
+  content?: SystemContentEntry[]
+  sessions?: Session[]
+  characters?: CharacterEntry[]
+}
+
+export interface ApplySyncResult {
+  success: boolean
+  updatedElements: string[]
+  error?: string
+}
+
+export interface SyncCheckPayload {
+  code: string
+  campaignId: number
+  campaignUpdatedAt?: string
+  systemId?: number
+  systemUpdatedAt?: string
+  sessions?: Array<{ id: number; updatedAt?: string; status: string; title?: string }>
+  characters?: Array<{
+    id?: number
+    name: string
+    avatar_url?: string | null
+    role?: 'pc' | 'npc' | 'enemy'
+    sheet_data?: Record<string, unknown> | string
+    updated_at: string
+  }>
+  userId?: number
+  username?: string
+}
+
+export interface SyncCheckResult {
+  success: boolean
+  isUpToDate: boolean
+  obsoleteElements: string[]
+  updatedData: {
+    campaign?: Partial<CampaignWithDetails>
+    system?: RpgSystemFull | null
+    content?: SystemContentEntry[]
+    sessions?: Session[]
+    characters?: CharacterEntry[]
+  }
+  playerCharactersAccepted: number
+  serverTime: string
+  error?: string
+}
+
 /* -- Window API --------------------------------------------- */
 interface API {
   auth: {
@@ -299,6 +384,13 @@ interface API {
     reopen: (id: number) => Promise<SessionResult>
     delete: (id: number) => Promise<{ success: boolean; error?: string }>
     importBundle: (payload: ImportBundlePayload) => Promise<ImportBundleResult>
+    applySyncUpdate: (payload: ApplySyncPayload, userId?: number) => Promise<ApplySyncResult>
+  }
+  characters: {
+    getByCampaign: (campaignId: number, userId?: number) => Promise<CharacterEntry[]>
+    getById: (id: number) => Promise<CharacterEntry | null>
+    save: (payload: SaveCharacterPayload) => Promise<CharacterResult>
+    delete: (id: number, userId: number, isGM?: boolean) => Promise<{ success: boolean; error?: string }>
   }
   systems: {
     getAll: () => Promise<RpgSystemFull[]>

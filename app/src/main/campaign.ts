@@ -7,6 +7,8 @@ export interface Campaign {
   status: 'active' | 'paused' | 'finished'
   rpg_system_id: number
   owner_id: number
+  is_downloaded?: number
+  my_role?: 'gm' | 'player' | 'observer'
   created_at: string
   updated_at: string
 }
@@ -70,7 +72,7 @@ export function createCampaign(payload: CreateCampaignPayload): CampaignResult {
 export function getCampaignsByUser(userId: number): Campaign[] {
   const db = getDb()
   return db.prepare(`
-    SELECT c.*
+    SELECT c.*, cm.role as my_role
     FROM campaigns c
     JOIN campaign_members cm ON cm.campaign_id = c.id
     WHERE cm.user_id = ?

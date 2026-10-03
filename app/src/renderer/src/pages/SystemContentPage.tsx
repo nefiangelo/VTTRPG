@@ -197,12 +197,14 @@ function detectFieldMode(v: unknown): FieldMode {
 function ExtraFieldEditor({
   fieldKey,
   value,
+  isReadOnly,
   onChange,
   onDelete,
   onValidityChange,
 }: {
   fieldKey: string
   value: unknown
+  isReadOnly?: boolean
   onChange: (v: unknown) => void
   onDelete: () => void
   onValidityChange: (key: string, isValid: boolean) => void
@@ -329,59 +331,63 @@ function ExtraFieldEditor({
           <span className="text-xs font-mono font-semibold text-vtt-golden truncate max-w-[220px]" title={fieldKey}>
             {fieldKey}
           </span>
-          <div className="flex items-center bg-vtt-dark-gray border border-vtt-dark-gray rounded-lg p-0.5 text-[10px]">
-            <button
-              type="button"
-              onClick={() => handleModeChange('text')}
-              className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${mode === 'text'
-                ? 'bg-vtt-dark text-vtt-light font-medium shadow-xs'
-                : 'text-vtt-light/50 hover:text-vtt-light'
-                }`}
-            >
-              texto
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange('list')}
-              className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${mode === 'list'
-                ? 'bg-vtt-golden/20 text-vtt-golden font-medium shadow-xs'
-                : 'text-vtt-light/50 hover:text-vtt-light'
-                }`}
-            >
-              lista
-            </button>
-            <button
-              type="button"
-              onClick={() => handleModeChange('json')}
-              className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${mode === 'json'
-                ? 'bg-vtt-red/20 text-vtt-red font-medium shadow-xs'
-                : 'text-vtt-light/50 hover:text-vtt-light'
-                }`}
-            >
-              JSON
-            </button>
-          </div>
+          {!isReadOnly && (
+            <div className="flex items-center bg-vtt-dark-gray border border-vtt-dark-gray rounded-lg p-0.5 text-[10px]">
+              <button
+                type="button"
+                onClick={() => handleModeChange('text')}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${mode === 'text'
+                  ? 'bg-vtt-dark text-vtt-light font-medium shadow-xs'
+                  : 'text-vtt-light/50 hover:text-vtt-light'
+                  }`}
+              >
+                texto
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange('list')}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${mode === 'list'
+                  ? 'bg-vtt-golden/20 text-vtt-golden font-medium shadow-xs'
+                  : 'text-vtt-light/50 hover:text-vtt-light'
+                  }`}
+              >
+                lista
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModeChange('json')}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${mode === 'json'
+                  ? 'bg-vtt-red/20 text-vtt-red font-medium shadow-xs'
+                  : 'text-vtt-light/50 hover:text-vtt-light'
+                  }`}
+              >
+                JSON
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-1.5 ml-auto">
-          {mode === 'json' && (
+        {!isReadOnly && (
+          <div className="flex items-center gap-1.5 ml-auto">
+            {mode === 'json' && (
+              <button
+                type="button"
+                onClick={handleFormatJson}
+                className="text-[11px] px-2 py-0.5 rounded-md text-vtt-light/60 hover:text-vtt-golden bg-vtt-dark-gray hover:bg-vtt-dark-gray/80 transition-colors cursor-pointer"
+              >
+                Formatar
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleFormatJson}
-              className="text-[11px] px-2 py-0.5 rounded-md text-vtt-light/60 hover:text-vtt-golden bg-vtt-dark-gray hover:bg-vtt-dark-gray/80 transition-colors cursor-pointer"
+              onClick={onDelete}
+              title="Excluir campo"
+              className="text-vtt-light/50 hover:text-vtt-red transition-colors cursor-pointer p-1 rounded hover:bg-vtt-red/10"
             >
-              Formatar
+              <IconTrash />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={onDelete}
-            title="Excluir campo"
-            className="text-vtt-light/50 hover:text-vtt-red transition-colors cursor-pointer p-1 rounded hover:bg-vtt-red/10"
-          >
-            <IconTrash />
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {mode === 'json' && (
@@ -435,6 +441,7 @@ interface ContentFormProps {
 }
 
 function ContentFormModal({ system, initial, defaultType, onClose, onSaved }: ContentFormProps): React.JSX.Element {
+  const isReadOnly = Boolean(system.is_downloaded)
   const [name, setName] = useState(initial?.name ?? '')
   const [type, setType] = useState<ContentType>(initial?.type ?? defaultType ?? 'class')
   const [data, setData] = useState<Record<string, unknown>>(initial?.data ?? {})
@@ -496,6 +503,7 @@ function ContentFormModal({ system, initial, defaultType, onClose, onSaved }: Co
 
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
+    if (isReadOnly) return
     setError(null)
 
     const invalidKeys = Object.keys(invalidFields)
@@ -536,174 +544,205 @@ function ContentFormModal({ system, initial, defaultType, onClose, onSaved }: Co
       >
         {/* Header do Modal */}
         <div className="flex items-center justify-between px-8 py-5 border-b border-vtt-dark-gray shrink-0 bg-vtt-dark sticky top-0 z-10">
-          <h2 className="text-xl font-bold text-vtt-golden">
-            {initial ? 'Editar Conteúdo' : 'Novo Conteúdo'}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-vtt-golden">
+              {isReadOnly ? 'Visualizar Conteúdo' : initial ? 'Editar Conteúdo' : 'Novo Conteúdo'}
+            </h2>
+            {isReadOnly && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                Somente Leitura
+              </span>
+            )}
+          </div>
           <button type="button" onClick={onClose}
             className="text-vtt-light/50 hover:text-vtt-light transition-colors text-xl cursor-pointer">✕</button>
         </div>
 
         <div className="flex flex-col gap-6 p-8">
+          {isReadOnly && (
+            <div className="bg-vtt-golden/10 border border-vtt-golden/30 text-vtt-golden text-xs rounded-xl px-4 py-3 flex items-center gap-2">
+              <span>ℹ️</span>
+              <span>Este sistema foi baixado de uma sessão remota. Seu conteúdo está disponível apenas para visualização.</span>
+            </div>
+          )}
+
           {error && (
             <div className="bg-vtt-dark-red/20 border border-vtt-red/50 text-vtt-red text-sm rounded-lg px-4 py-3">{error}</div>
           )}
 
-          <section className="flex flex-col gap-5 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
-            <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
-              <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest">Geral</h3>
-            </div>
-
-            <div className="flex gap-4">
-              {!initial && (
-                <label className="flex-1 flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-vtt-light/60">Tipo *</span>
-                  <select value={type} onChange={e => setType(e.target.value as ContentType)}
-                    className="bg-vtt-dark border border-vtt-dark-gray rounded-lg text-vtt-light py-2 px-3
-                               text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
-                    {CONTENT_TYPES.map(ct => (
-                      <option key={ct.value} value={ct.value}>{ct.label}</option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="flex-[2] flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-vtt-light/60">Nome *</span>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} required
-                  placeholder="Nome do conteúdo..."
-                  className="bg-transparent border-b border-vtt-dark-gray text-vtt-light placeholder:text-vtt-light/30
-                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
-              </label>
-            </div>
-          </section>
-
-          {fixedFields.length > 0 && (
-            <section className="flex flex-col gap-4 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
-              <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
-                <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest flex items-center gap-2">
-                  <span>Campos Fixos de {currentTypeMeta.singularLabel}</span>
-                </h3>
+          <fieldset disabled={isReadOnly} className="flex flex-col gap-6">
+            <section className="flex flex-col gap-5 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
+              <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
+                <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest">Geral</h3>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {fixedFields.map(field => {
-                  const isFullWidth = field.type === 'textarea' || field.type === 'list'
-                  return (
-                    <div
-                      key={field.key}
-                      className={`flex flex-col gap-1.5 ${isFullWidth ? 'md:col-span-2' : ''}`}
-                    >
-                      {field.type !== 'checkbox' && (
-                        <label className="text-[11px] font-medium text-vtt-light/60 flex items-center justify-between">
-                          <span>{field.label}</span>
-                        </label>
-                      )}
-                      <DynamicFieldInput
-                        field={field}
-                        value={data[field.key]}
-                        onChange={v => setField(field.key, v)}
-                      />
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
 
-          {groups.length > 0 && (
-            <section className="flex flex-col gap-4 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
-              <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
-                <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest flex items-center gap-2">
-                  <span>Atributos da Ficha</span>
-                </h3>
-              </div>
-              <div className="flex flex-col gap-5">
-                {groups.map(group => (
-                  <div key={group.id} className="flex flex-col gap-3">
-                    <p className="text-xs font-semibold text-vtt-golden bg-vtt-dark p-1.5 rounded border border-vtt-dark-gray">{group.label}</p>
-                    <div className="grid grid-cols-2 gap-3 px-2">
-                      {group.fields.map(field => (
-                        <div key={field.key} className="flex flex-col gap-1">
-                          {field.type !== 'checkbox' && (
-                            <label className="text-[11px] text-vtt-light/60">{field.label}</label>
-                          )}
-                          <DynamicFieldInput
-                            field={field}
-                            value={data[field.key]}
-                            onChange={v => setField(field.key, v)}
-                          />
-                        </div>
+              <div className="flex gap-4">
+                {!initial && (
+                  <label className="flex-1 flex flex-col gap-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-widest text-vtt-light/60">Tipo *</span>
+                    <select value={type} onChange={e => setType(e.target.value as ContentType)}
+                      className="bg-vtt-dark border border-vtt-dark-gray rounded-lg text-vtt-light py-2 px-3
+                                 text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
+                      {CONTENT_TYPES.map(ct => (
+                        <option key={ct.value} value={ct.value}>{ct.label}</option>
                       ))}
-                    </div>
-                  </div>
-                ))}
+                    </select>
+                  </label>
+                )}
+                <label className="flex-[2] flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-vtt-light/60">Nome *</span>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                    placeholder="Nome do conteúdo..."
+                    className="bg-transparent border-b border-vtt-dark-gray text-vtt-light placeholder:text-vtt-light/30
+                               py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+                </label>
               </div>
             </section>
-          )}
 
-          <section className="flex flex-col gap-4 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
-            <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
-              <div>
-                <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest flex items-center gap-2">
-                  <span>Campos Adicionais (Extra)</span>
-                </h3>
+            {fixedFields.length > 0 && (
+              <section className="flex flex-col gap-4 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
+                <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
+                  <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest flex items-center gap-2">
+                    <span>Campos Fixos de {currentTypeMeta.singularLabel}</span>
+                  </h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {fixedFields.map(field => {
+                    const isFullWidth = field.type === 'textarea' || field.type === 'list'
+                    return (
+                      <div
+                        key={field.key}
+                        className={`flex flex-col gap-1.5 ${isFullWidth ? 'md:col-span-2' : ''}`}
+                      >
+                        {field.type !== 'checkbox' && (
+                          <label className="text-[11px] font-medium text-vtt-light/60 flex items-center justify-between">
+                            <span>{field.label}</span>
+                          </label>
+                        )}
+                        <DynamicFieldInput
+                          field={field}
+                          value={data[field.key]}
+                          onChange={v => setField(field.key, v)}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )}
+
+            {groups.length > 0 && (
+              <section className="flex flex-col gap-4 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
+                <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
+                  <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest flex items-center gap-2">
+                    <span>Atributos da Ficha</span>
+                  </h3>
+                </div>
+                <div className="flex flex-col gap-5">
+                  {groups.map(group => (
+                    <div key={group.id} className="flex flex-col gap-3">
+                      <p className="text-xs font-semibold text-vtt-golden bg-vtt-dark p-1.5 rounded border border-vtt-dark-gray">{group.label}</p>
+                      <div className="grid grid-cols-2 gap-3 px-2">
+                        {group.fields.map(field => (
+                          <div key={field.key} className="flex flex-col gap-1">
+                            {field.type !== 'checkbox' && (
+                              <label className="text-[11px] text-vtt-light/60">{field.label}</label>
+                            )}
+                            <DynamicFieldInput
+                              field={field}
+                              value={data[field.key]}
+                              onChange={v => setField(field.key, v)}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <section className="flex flex-col gap-4 bg-vtt-dark-gray/30 p-6 rounded-xl border border-vtt-dark-gray shadow-inner">
+              <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest flex items-center gap-2">
+                    <span>Campos Adicionais (Extra)</span>
+                  </h3>
+                </div>
               </div>
-            </div>
 
-            {Object.entries(data)
-              .filter(([k]) => !fixedFields.some(f => f.key === k) && !groups.flatMap(g => g.fields ?? []).some(f => f.key === k))
-              .map(([k, v]) => (
-                <ExtraFieldEditor
-                  key={k}
-                  fieldKey={k}
-                  value={v}
-                  onChange={val => setField(k, val)}
-                  onDelete={() => removeField(k)}
-                  onValidityChange={handleValidityChange}
-                />
-              ))}
+              {Object.entries(data)
+                .filter(([k]) => !fixedFields.some(f => f.key === k) && !groups.flatMap(g => g.fields ?? []).some(f => f.key === k))
+                .map(([k, v]) => (
+                  <ExtraFieldEditor
+                    key={k}
+                    fieldKey={k}
+                    value={v}
+                    isReadOnly={isReadOnly}
+                    onChange={val => setField(k, val)}
+                    onDelete={() => removeField(k)}
+                    onValidityChange={handleValidityChange}
+                  />
+                ))}
 
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <input
-                type="text"
-                value={extraKey}
-                onChange={e => setExtraKey(e.target.value)}
-                placeholder="Nome da chave (ex: magic_resist)"
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra() } }}
-                className="w-full sm:w-44 bg-vtt-dark border border-vtt-dark-gray rounded-lg text-vtt-light text-xs
-                           py-1.5 px-3 outline-none focus:border-vtt-golden transition-colors font-mono placeholder:text-vtt-light/30"
-              />
-              <input
-                type="text"
-                value={extraVal}
-                onChange={e => setExtraVal(e.target.value)}
-                placeholder="Valor (texto, lista ou JSON)"
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra() } }}
-                className="flex-1 bg-vtt-dark border border-vtt-dark-gray rounded-lg text-vtt-light text-xs
-                           py-1.5 px-3 outline-none focus:border-vtt-golden transition-colors placeholder:text-vtt-light/30"
-              />
-              <button
-                type="button"
-                onClick={addExtra}
-                className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-vtt-dark border border-vtt-dark-gray
-                           text-vtt-golden hover:bg-vtt-dark-gray text-xs transition-colors cursor-pointer shrink-0"
-              >
-                <IconPlus /> Add
-              </button>
-            </div>
-          </section>
+              {!isReadOnly && (
+                <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                  <input
+                    type="text"
+                    value={extraKey}
+                    onChange={e => setExtraKey(e.target.value)}
+                    placeholder="Nome da chave (ex: magic_resist)"
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra() } }}
+                    className="w-full sm:w-44 bg-vtt-dark border border-vtt-dark-gray rounded-lg text-vtt-light text-xs
+                               py-1.5 px-3 outline-none focus:border-vtt-golden transition-colors font-mono placeholder:text-vtt-light/30"
+                  />
+                  <input
+                    type="text"
+                    value={extraVal}
+                    onChange={e => setExtraVal(e.target.value)}
+                    placeholder="Valor (texto, lista ou JSON)"
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addExtra() } }}
+                    className="flex-1 bg-vtt-dark border border-vtt-dark-gray rounded-lg text-vtt-light text-xs
+                               py-1.5 px-3 outline-none focus:border-vtt-golden transition-colors placeholder:text-vtt-light/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={addExtra}
+                    className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg bg-vtt-dark border border-vtt-dark-gray
+                               text-vtt-golden hover:bg-vtt-dark-gray text-xs transition-colors cursor-pointer shrink-0"
+                  >
+                    <IconPlus /> Add
+                  </button>
+                </div>
+              )}
+            </section>
+          </fieldset>
         </div>
 
         {/* Footer */}
         <div className="flex gap-3 px-8 py-5 border-t border-vtt-dark-gray shrink-0 bg-vtt-dark sticky bottom-0 z-10 rounded-b-2xl">
-          <button type="button" onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-vtt-dark-gray text-vtt-light/70 text-sm
-                       font-semibold hover:border-vtt-red hover:text-vtt-red transition-colors cursor-pointer">
-            Cancelar
-          </button>
-          <button type="submit" disabled={loading}
-            className="flex-1 py-2.5 rounded-xl bg-vtt-golden text-vtt-dark text-sm font-semibold
-                       hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-vtt-golden/20">
-            {loading ? 'Salvando...' : initial ? 'Salvar' : 'Criar'}
-          </button>
+          {isReadOnly ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl bg-vtt-golden text-vtt-dark text-sm font-semibold hover:brightness-110 transition-all cursor-pointer shadow-lg shadow-vtt-golden/20"
+            >
+              Fechar
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl border border-vtt-dark-gray text-vtt-light/70 text-sm
+                           font-semibold hover:border-vtt-red hover:text-vtt-red transition-colors cursor-pointer">
+                Cancelar
+              </button>
+              <button type="submit" disabled={loading}
+                className="flex-1 py-2.5 rounded-xl bg-vtt-golden text-vtt-dark text-sm font-semibold
+                           hover:brightness-110 transition-all disabled:opacity-50 cursor-pointer shadow-lg shadow-vtt-golden/20">
+                {loading ? 'Salvando...' : initial ? 'Salvar' : 'Criar'}
+              </button>
+            </>
+          )}
         </div>
       </form>
     </div>
@@ -711,8 +750,9 @@ function ContentFormModal({ system, initial, defaultType, onClose, onSaved }: Co
 }
 
 /* ─── Content Entry Row ──────────────────────────────────────── */
-function EntryRow({ entry, onEdit, onDelete }: {
+function EntryRow({ entry, isReadOnly, onEdit, onDelete }: {
   entry: SystemContentEntry
+  isReadOnly?: boolean
   onEdit: () => void
   onDelete: () => void
 }): React.JSX.Element {
@@ -746,13 +786,15 @@ function EntryRow({ entry, onEdit, onDelete }: {
           <button type="button" onClick={onEdit}
             className="flex items-center gap-1.5 py-1 px-3 rounded-lg text-vtt-light/60 hover:text-vtt-golden hover:bg-vtt-dark-gray
                        text-xs transition-all duration-150 cursor-pointer border border-transparent hover:border-vtt-dark-gray">
-            <IconEdit /> Editar
+            <IconEdit /> {isReadOnly ? 'Visualizar' : 'Editar'}
           </button>
-          <button type="button" onClick={onDelete}
-            className="flex items-center gap-1.5 py-1 px-3 rounded-lg text-vtt-light/60 hover:text-vtt-red hover:bg-vtt-dark-red/20
-                       text-xs transition-all duration-150 cursor-pointer border border-transparent hover:border-vtt-red/30">
-            <IconTrash /> Apagar
-          </button>
+          {!isReadOnly && (
+            <button type="button" onClick={onDelete}
+              className="flex items-center gap-1.5 py-1 px-3 rounded-lg text-vtt-light/60 hover:text-vtt-red hover:bg-vtt-dark-red/20
+                         text-xs transition-all duration-150 cursor-pointer border border-transparent hover:border-vtt-red/30">
+              <IconTrash /> Apagar
+            </button>
+          )}
         </div>
       </div>
 
@@ -854,6 +896,7 @@ export default function SystemContentPage(): React.JSX.Element {
   }
 
   const activeTypeMeta = CONTENT_TYPES.find(ct => ct.value === activeTab)!
+  const isReadOnly = Boolean(system.is_downloaded)
 
   return (
     <div className="flex flex-row h-screen overflow-hidden bg-vtt-dark">
@@ -871,15 +914,22 @@ export default function SystemContentPage(): React.JSX.Element {
           </button>
 
           <div className="flex items-end justify-between gap-4">
-            <div>
+            <div className="flex items-center gap-3">
               <h1 className="text-3xl font-bold text-vtt-golden">{system.name}</h1>
+              {isReadOnly && (
+                <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                  Baixado (Somente Leitura)
+                </span>
+              )}
             </div>
 
-            <button type="button" onClick={openCreate}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vtt-dark border border-vtt-golden/20 text-vtt-golden
-                         font-semibold text-sm hover:border-vtt-golden/50 hover:bg-vtt-dark-gray transition-colors cursor-pointer shrink-0 shadow-md">
-              <IconPlus /> Novo Registro
-            </button>
+            {!isReadOnly && (
+              <button type="button" onClick={openCreate}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vtt-dark border border-vtt-golden/20 text-vtt-golden
+                           font-semibold text-sm hover:border-vtt-golden/50 hover:bg-vtt-dark-gray transition-colors cursor-pointer shrink-0 shadow-md">
+                <IconPlus /> Novo Registro
+              </button>
+            )}
           </div>
         </div>
 
@@ -948,7 +998,7 @@ export default function SystemContentPage(): React.JSX.Element {
                   <p className="text-vtt-light/60 text-sm">
                     {search ? 'Nenhum resultado encontrado.' : `Nenhum registro de ${activeTypeMeta.label.toLowerCase()} encontrado.`}
                   </p>
-                  {!search && (
+                  {!search && !isReadOnly && (
                     <button type="button" onClick={openCreate}
                       className="px-5 py-2 rounded-lg bg-vtt-dark-gray/50 border border-vtt-dark-gray text-vtt-golden text-sm font-semibold hover:border-vtt-golden/50 transition-colors cursor-pointer mt-2">
                       Adicionar {activeTypeMeta.singularLabel}
@@ -961,6 +1011,7 @@ export default function SystemContentPage(): React.JSX.Element {
                     <EntryRow
                       key={entry.id}
                       entry={entry}
+                      isReadOnly={isReadOnly}
                       onEdit={() => openEdit(entry)}
                       onDelete={() => setDeletingId(entry.id)}
                     />

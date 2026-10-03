@@ -47,9 +47,10 @@ function runMigrations(db: Database.Database): void {
       genre       TEXT,
       description TEXT,
       structure   TEXT    NOT NULL DEFAULT '{}',
-      created_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
-      updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+      created_by    INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      is_downloaded INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
     );
   `)
 
@@ -99,6 +100,7 @@ function runMigrations(db: Database.Database): void {
                               CHECK (status IN ('active','paused','finished')),
       rpg_system_id   INTEGER NOT NULL REFERENCES rpg_systems(id) ON DELETE RESTRICT,
       owner_id        INTEGER NOT NULL REFERENCES users(id)       ON DELETE RESTRICT,
+      is_downloaded   INTEGER NOT NULL DEFAULT 0,
       created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
       updated_at      TEXT    NOT NULL DEFAULT (datetime('now'))
     );
@@ -161,7 +163,9 @@ function runMigrations(db: Database.Database): void {
       ended_at      TEXT,
       notes         TEXT,
       access_code   TEXT,
-      created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      server_url    TEXT,
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_sessions_campaign ON sessions(campaign_id);
@@ -175,6 +179,24 @@ function runMigrations(db: Database.Database): void {
 
   try {
     db.exec(`ALTER TABLE sessions ADD COLUMN server_url TEXT;`)
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`ALTER TABLE sessions ADD COLUMN updated_at TEXT;`)
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN is_downloaded INTEGER DEFAULT 0;`)
+  } catch {
+    // Column already exists
+  }
+
+  try {
+    db.exec(`ALTER TABLE rpg_systems ADD COLUMN is_downloaded INTEGER DEFAULT 0;`)
   } catch {
     // Column already exists
   }

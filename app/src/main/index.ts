@@ -13,9 +13,17 @@ import {
   endSession,
   reopenSession,
   deleteSession,
-  importSessionBundle
+  importSessionBundle,
+  applySessionSyncUpdate
 } from './session'
-import type { CreateSessionPayload, UpdateSessionPayload, ImportBundlePayload } from './session'
+import type { CreateSessionPayload, UpdateSessionPayload, ImportBundlePayload, ApplySyncPayload } from './session'
+import {
+  getCharactersByCampaign,
+  getCharacterById,
+  saveCharacter,
+  deleteCharacter
+} from './character'
+import type { SaveCharacterPayload } from './character'
 import {
   getRpgSystemsFull, getRpgSystemById, createRpgSystem, updateRpgSystem, deleteRpgSystem,
   getSystemContent, createSystemContent, updateSystemContent, deleteSystemContent,
@@ -132,6 +140,23 @@ app.whenReady().then(() => {
   )
   ipcMain.handle('session:importBundle', (_e, payload: ImportBundlePayload) =>
     importSessionBundle(payload)
+  )
+  ipcMain.handle('session:applySyncUpdate', (_e, payload: ApplySyncPayload, userId?: number) =>
+    applySessionSyncUpdate(payload, userId)
+  )
+
+  // Characters (Fichas de Personagem)
+  ipcMain.handle('character:getByCampaign', (_e, campaignId: number, userId?: number) =>
+    getCharactersByCampaign(campaignId, userId)
+  )
+  ipcMain.handle('character:getById', (_e, id: number) =>
+    getCharacterById(id)
+  )
+  ipcMain.handle('character:save', (_e, payload: SaveCharacterPayload) =>
+    saveCharacter(payload)
+  )
+  ipcMain.handle('character:delete', (_e, id: number, userId?: number, isGM?: boolean) =>
+    deleteCharacter(id, userId, isGM)
   )
 
   // RPG Systems full CRUD

@@ -11,6 +11,7 @@ export interface Session {
   access_code?: string | null
   server_url?: string | null
   created_at: string
+  updated_at?: string
 }
 
 export interface SessionResult {
@@ -69,9 +70,14 @@ export function getSessionById(id: number): Session | null {
 export function createSession(payload: CreateSessionPayload): SessionResult {
   const db = getDb()
 
-  const campaign = db.prepare('SELECT id FROM campaigns WHERE id = ?').get(payload.campaign_id)
+  const campaign = db.prepare('SELECT id, is_downloaded FROM campaigns WHERE id = ?').get(payload.campaign_id) as
+    | { id: number; is_downloaded?: number }
+    | undefined
   if (!campaign) {
     return { success: false, error: 'Campanha não encontrada.' }
+  }
+  if (campaign.is_downloaded) {
+    return { success: false, error: 'Não é possível criar sessões em campanhas baixadas (somente leitura).' }
   }
 
   let title = payload.title?.trim()
@@ -99,9 +105,17 @@ export function createSession(payload: CreateSessionPayload): SessionResult {
  */
 export function updateSession(payload: UpdateSessionPayload): SessionResult {
   const db = getDb()
-  const current = db.prepare('SELECT * FROM sessions WHERE id = ?').get(payload.id) as Session | undefined
+  const current = db.prepare(`
+    SELECT s.*, c.is_downloaded
+    FROM sessions s
+    JOIN campaigns c ON c.id = s.campaign_id
+    WHERE s.id = ?
+  `).get(payload.id) as (Session & { is_downloaded?: number }) | undefined
   if (!current) {
     return { success: false, error: 'Sessão não encontrada.' }
+  }
+  if (current.is_downloaded) {
+    return { success: false, error: 'Sessões de campanhas baixadas não podem ser alteradas.' }
   }
 
   const title = payload.title !== undefined ? payload.title.trim() : current.title
@@ -110,7 +124,7 @@ export function updateSession(payload: UpdateSessionPayload): SessionResult {
 
   db.prepare(`
     UPDATE sessions
-    SET title = ?, notes = ?, status = ?
+    SET title = ?, notes = ?, status = ?, updated_at = datetime('now')
     WHERE id = ?
   `).run(title, notes, status, payload.id)
 
@@ -124,16 +138,25 @@ export function updateSession(payload: UpdateSessionPayload): SessionResult {
  */
 export function startSession(id: number): SessionResult {
   const db = getDb()
-  const current = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined
+  const current = db.prepare(`
+    SELECT s.*, c.is_downloaded
+    FROM sessions s
+    JOIN campaigns c ON c.id = s.campaign_id
+    WHERE s.id = ?
+  `).get(id) as (Session & { is_downloaded?: number }) | undefined
   if (!current) {
     return { success: false, error: 'Sessão não encontrada.' }
+  }
+  if (current.is_downloaded) {
+    return { success: false, error: 'Apenas o Mestre anfitrião pode controlar o ciclo da sessão.' }
   }
 
   db.prepare(`
     UPDATE sessions
     SET status = 'active',
         started_at = COALESCE(started_at, datetime('now')),
-        ended_at = NULL
+        ended_at = NULL,
+        updated_at = datetime('now')
     WHERE id = ?
   `).run(id)
 
@@ -147,9 +170,17 @@ export function startSession(id: number): SessionResult {
  */
 export function endSession(id: number, notes?: string): SessionResult {
   const db = getDb()
-  const current = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined
+  const current = db.prepare(`
+    SELECT s.*, c.is_downloaded
+    FROM sessions s
+    JOIN campaigns c ON c.id = s.campaign_id
+    WHERE s.id = ?
+  `).get(id) as (Session & { is_downloaded?: number }) | undefined
   if (!current) {
     return { success: false, error: 'Sessão não encontrada.' }
+  }
+  if (current.is_downloaded) {
+    return { success: false, error: 'Apenas o Mestre anfitrião pode controlar o ciclo da sessão.' }
   }
 
   const finalNotes = notes !== undefined ? notes : current.notes
@@ -158,7 +189,8 @@ export function endSession(id: number, notes?: string): SessionResult {
     UPDATE sessions
     SET status = 'completed',
         ended_at = datetime('now'),
-        notes = ?
+        notes = ?,
+        updated_at = datetime('now')
     WHERE id = ?
   `).run(finalNotes, id)
 
@@ -171,15 +203,24 @@ export function endSession(id: number, notes?: string): SessionResult {
  */
 export function reopenSession(id: number): SessionResult {
   const db = getDb()
-  const current = db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined
+  const current = db.prepare(`
+    SELECT s.*, c.is_downloaded
+    FROM sessions s
+    JOIN campaigns c ON c.id = s.campaign_id
+    WHERE s.id = ?
+  `).get(id) as (Session & { is_downloaded?: number }) | undefined
   if (!current) {
     return { success: false, error: 'Sessão não encontrada.' }
+  }
+  if (current.is_downloaded) {
+    return { success: false, error: 'Apenas o Mestre anfitrião pode controlar o ciclo da sessão.' }
   }
 
   db.prepare(`
     UPDATE sessions
     SET status = 'active',
-        ended_at = NULL
+        ended_at = NULL,
+        updated_at = datetime('now')
     WHERE id = ?
   `).run(id)
 
@@ -192,6 +233,19 @@ export function reopenSession(id: number): SessionResult {
  */
 export function deleteSession(id: number): { success: boolean; error?: string } {
   const db = getDb()
+  const current = db.prepare(`
+    SELECT s.*, c.is_downloaded
+    FROM sessions s
+    JOIN campaigns c ON c.id = s.campaign_id
+    WHERE s.id = ?
+  `).get(id) as (Session & { is_downloaded?: number }) | undefined
+  if (!current) {
+    return { success: false, error: 'Sessão não encontrada.' }
+  }
+  if (current.is_downloaded) {
+    return { success: false, error: 'Sessões de campanhas baixadas não podem ser excluídas.' }
+  }
+
   const info = db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   if (info.changes === 0) {
     return { success: false, error: 'Sessão não encontrada.' }
@@ -261,6 +315,14 @@ export interface SessionBundleData {
     name: string
     data: Record<string, unknown>
   }>
+  characters?: Array<{
+    id?: number
+    name: string
+    avatar_url?: string | null
+    role?: 'pc' | 'npc' | 'enemy'
+    sheet_data?: Record<string, unknown> | string
+    updated_at?: string
+  }>
   stats?: {
     totalContentItems: number
     attributeGroupsCount: number
@@ -283,14 +345,64 @@ export interface ImportBundleResult {
     importedContentCount: number
     importedCampaign: boolean
     importedSessionsCount: number
+    importedCharactersCount?: number
   }
+  error?: string
+}
+
+export interface ApplySyncPayload {
+  campaignId: number
+  campaign?: {
+    title?: string
+    description?: string | null
+    status?: 'active' | 'paused' | 'finished'
+    updated_at?: string
+  }
+  system?: {
+    id: number
+    name: string
+    slug: string
+    version?: string | null
+    genre?: string | null
+    description?: string | null
+    structure?: unknown
+    updated_at?: string
+  } | null
+  content?: Array<{
+    type: string
+    name: string
+    data: unknown
+  }>
+  sessions?: Array<{
+    id: number
+    title?: string | null
+    status: string
+    started_at?: string | null
+    notes?: string | null
+    access_code?: string | null
+    server_url?: string | null
+    updated_at?: string
+  }>
+  characters?: Array<{
+    id?: number
+    name: string
+    avatar_url?: string | null
+    role?: 'pc' | 'npc' | 'enemy'
+    sheet_data?: unknown
+    updated_at: string
+  }>
+}
+
+export interface ApplySyncResult {
+  success: boolean
+  updatedElements: string[]
   error?: string
 }
 
 /**
  * Importa o pacote de sessão baixado pelo jogador para o SQLite local,
  * preenchendo as tabelas de sistemas (rpg_systems, system_content), campanhas (campaigns, campaign_members)
- * e sessões (sessions).
+ * e sessões (sessions). Marca o conteúdo como baixado (somente leitura).
  */
 export function importSessionBundle(payload: ImportBundlePayload): ImportBundleResult {
   const db = getDb()
@@ -310,8 +422,12 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
         const structureJson = JSON.stringify(sys.structure ?? { attributeGroups: [] })
 
         const existingSystem = db
-          .prepare('SELECT id FROM rpg_systems WHERE slug = ? OR name = ?')
-          .get(slug, sys.name) as { id: number } | undefined
+          .prepare('SELECT id, created_by FROM rpg_systems WHERE slug = ? OR name = ?')
+          .get(slug, sys.name) as { id: number; created_by?: number } | undefined
+
+        // Se o sistema já pertencer ao próprio usuário local, mantém suas permissões; senão, marca is_downloaded = 1
+        const isUserSystem = existingSystem?.created_by === userId
+        const isDownloaded = isUserSystem ? 0 : 1
 
         if (existingSystem) {
           db.prepare(`
@@ -322,6 +438,7 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
                 genre = ?,
                 description = ?,
                 structure = ?,
+                is_downloaded = ?,
                 updated_at = datetime('now')
             WHERE id = ?
           `).run(
@@ -331,6 +448,7 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
             sys.genre || null,
             sys.description || null,
             structureJson,
+            isDownloaded,
             existingSystem.id
           )
           localSystemId = existingSystem.id
@@ -338,8 +456,8 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
           const idTaken = db.prepare('SELECT id FROM rpg_systems WHERE id = ?').get(sys.id)
           if (!idTaken && sys.id) {
             db.prepare(`
-              INSERT INTO rpg_systems (id, name, slug, version, genre, description, structure, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              INSERT INTO rpg_systems (id, name, slug, version, genre, description, structure, is_downloaded, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
             `).run(
               sys.id,
               sys.name,
@@ -352,8 +470,8 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
             localSystemId = sys.id
           } else {
             const info = db.prepare(`
-              INSERT INTO rpg_systems (name, slug, version, genre, description, structure, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+              INSERT INTO rpg_systems (name, slug, version, genre, description, structure, is_downloaded, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
             `).run(
               sys.name,
               slug,
@@ -395,21 +513,32 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
       }
 
       // 3. Campaign Owner (users)
+      // Garante que o owner_id da campanha baixada NUNCA seja o próprio jogador local
       let localOwnerId: number
-      const ownerUsername = bundle.campaign.owner_username?.trim() || 'Mestre'
+      const rawOwnerUsername = bundle.campaign.owner_username?.trim() || 'Mestre'
       const existingUser = db
-        .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE')
-        .get(ownerUsername) as { id: number } | undefined
-      if (existingUser) {
+        .prepare('SELECT id, username FROM users WHERE username = ? COLLATE NOCASE')
+        .get(rawOwnerUsername) as { id: number; username: string } | undefined
+
+      if (existingUser && existingUser.id !== userId) {
         localOwnerId = existingUser.id
       } else {
-        const info = db
-          .prepare(`
-            INSERT INTO users (username, password, created_at)
-            VALUES (?, 'remote_gm_placeholder', datetime('now'))
-          `)
-          .run(ownerUsername)
-        localOwnerId = Number(info.lastInsertRowid)
+        const remoteGmUsername = existingUser?.id === userId ? `${rawOwnerUsername} (GM Remoto)` : rawOwnerUsername
+        const remoteGmUser = db
+          .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE')
+          .get(remoteGmUsername) as { id: number } | undefined
+
+        if (remoteGmUser) {
+          localOwnerId = remoteGmUser.id
+        } else {
+          const info = db
+            .prepare(`
+              INSERT INTO users (username, password, created_at)
+              VALUES (?, 'remote_gm_placeholder', datetime('now'))
+            `)
+            .run(remoteGmUsername)
+          localOwnerId = Number(info.lastInsertRowid)
+        }
       }
 
       // 4. Campaign (campaigns)
@@ -432,8 +561,8 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
         } else {
           const fallbackSys = db
             .prepare(`
-              INSERT INTO rpg_systems (name, slug, structure, created_at, updated_at)
-              VALUES ('Sistema RPG', 'sistema-rpg', '{}', datetime('now'), datetime('now'))
+              INSERT INTO rpg_systems (name, slug, structure, is_downloaded, created_at, updated_at)
+              VALUES ('Sistema RPG', 'sistema-rpg', '{}', 1, datetime('now'), datetime('now'))
             `)
             .run()
           validSystemId = Number(fallbackSys.lastInsertRowid)
@@ -451,6 +580,7 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
               description = ?,
               status = ?,
               rpg_system_id = ?,
+              is_downloaded = 1,
               updated_at = datetime('now')
           WHERE id = ?
         `).run(campTitle, campDesc, campStatus, validSystemId, existingCampaign.id)
@@ -459,25 +589,25 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
         const idTaken = db.prepare('SELECT id FROM campaigns WHERE id = ?').get(camp.id)
         if (!idTaken && camp.id) {
           db.prepare(`
-            INSERT INTO campaigns (id, title, description, status, rpg_system_id, owner_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            INSERT INTO campaigns (id, title, description, status, rpg_system_id, owner_id, is_downloaded, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
           `).run(camp.id, campTitle, campDesc, campStatus, validSystemId, localOwnerId)
           localCampaignId = camp.id
         } else {
           const info = db.prepare(`
-            INSERT INTO campaigns (title, description, status, rpg_system_id, owner_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            INSERT INTO campaigns (title, description, status, rpg_system_id, owner_id, is_downloaded, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
           `).run(campTitle, campDesc, campStatus, validSystemId, localOwnerId)
           localCampaignId = Number(info.lastInsertRowid)
         }
       }
 
       // 5. Campaign Members (campaign_members)
-      // Add current player
+      // Jogador entra estritamente como 'player'
       db.prepare(`
         INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
         VALUES (?, ?, 'player', datetime('now'))
-        ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = excluded.role
+        ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = 'player'
       `).run(localCampaignId, userId)
 
       // Ensure GM is also member
@@ -485,7 +615,7 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
         db.prepare(`
           INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
           VALUES (?, ?, 'gm', datetime('now'))
-          ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = excluded.role
+          ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = 'gm'
         `).run(localCampaignId, localOwnerId)
       }
 
@@ -518,7 +648,8 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
                 started_at = ?,
                 notes = ?,
                 access_code = ?,
-                server_url = ?
+                server_url = ?,
+                updated_at = datetime('now')
             WHERE id = ?
           `).run(
             localCampaignId,
@@ -537,8 +668,8 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
           const idTaken = db.prepare('SELECT id FROM sessions WHERE id = ?').get(s.id)
           if (!idTaken && s.id) {
             db.prepare(`
-              INSERT INTO sessions (id, campaign_id, title, status, started_at, notes, access_code, server_url, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+              INSERT INTO sessions (id, campaign_id, title, status, started_at, notes, access_code, server_url, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).run(
               s.id,
               localCampaignId,
@@ -554,8 +685,8 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
             }
           } else {
             const info = db.prepare(`
-              INSERT INTO sessions (campaign_id, title, status, started_at, notes, access_code, server_url, created_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+              INSERT INTO sessions (campaign_id, title, status, started_at, notes, access_code, server_url, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
             `).run(
               localCampaignId,
               sTitle,
@@ -573,6 +704,47 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
         sessionsCount++
       }
 
+      // 7. Characters (characters) se existirem no pacote
+      let charactersCount = 0
+      if (bundle.characters && Array.isArray(bundle.characters)) {
+        for (const char of bundle.characters) {
+          if (!char.name) continue
+          const sheetStr =
+            typeof char.sheet_data === 'string'
+              ? char.sheet_data
+              : JSON.stringify(char.sheet_data ?? {})
+
+          const existingChar = db
+            .prepare('SELECT id FROM characters WHERE campaign_id = ? AND name = ?')
+            .get(localCampaignId, char.name.trim()) as { id: number } | undefined
+
+          if (existingChar) {
+            db.prepare(`
+              UPDATE characters
+              SET sheet_data = ?,
+                  role = ?,
+                  avatar_url = COALESCE(?, avatar_url),
+                  updated_at = COALESCE(?, datetime('now'))
+              WHERE id = ?
+            `).run(sheetStr, char.role || 'pc', char.avatar_url || null, char.updated_at || null, existingChar.id)
+          } else {
+            db.prepare(`
+              INSERT INTO characters (campaign_id, user_id, name, avatar_url, role, sheet_data, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, datetime('now'), COALESCE(?, datetime('now')))
+            `).run(
+              localCampaignId,
+              userId,
+              char.name.trim(),
+              char.avatar_url || null,
+              char.role || 'pc',
+              sheetStr,
+              char.updated_at || null
+            )
+          }
+          charactersCount++
+        }
+      }
+
       return {
         success: true,
         campaignId: localCampaignId,
@@ -582,7 +754,8 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
           importedSystem: !!localSystemId,
           importedContentCount: contentCount,
           importedCampaign: true,
-          importedSessionsCount: sessionsCount
+          importedSessionsCount: sessionsCount,
+          importedCharactersCount: charactersCount
         }
       }
     })
@@ -591,6 +764,194 @@ export function importSessionBundle(payload: ImportBundlePayload): ImportBundleR
   } catch (err: unknown) {
     console.error('Error importing session bundle:', err)
     return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/**
+ * Aplica atualizações de sincronização quando a conexão entre Jogador e GM é reestabelecida
+ * e foram detectados dados obsoletos. Mantém estritamente o modo somente leitura para campanhas/sistemas.
+ */
+export function applySessionSyncUpdate(payload: ApplySyncPayload, userId?: number): ApplySyncResult {
+  const db = getDb()
+  const { campaignId, campaign, system, content, sessions, characters } = payload
+  const updatedElements: string[] = []
+
+  try {
+    const syncTx = db.transaction(() => {
+      // 1. Atualizar campanha
+      if (campaign) {
+        db.prepare(`
+          UPDATE campaigns
+          SET title = COALESCE(?, title),
+              description = COALESCE(?, description),
+              status = COALESCE(?, status),
+              is_downloaded = 1,
+              updated_at = COALESCE(?, datetime('now'))
+          WHERE id = ?
+        `).run(
+          campaign.title || null,
+          campaign.description !== undefined ? campaign.description : null,
+          campaign.status || null,
+          campaign.updated_at || null,
+          campaignId
+        )
+        updatedElements.push('Campanha')
+      }
+
+      // 2. Atualizar sistema RPG e regras
+      if (system) {
+        const structureJson = JSON.stringify(system.structure ?? { attributeGroups: [] })
+        const existingSystem = db.prepare('SELECT id FROM rpg_systems WHERE id = ?').get(system.id) as
+          | { id: number }
+          | undefined
+
+        if (existingSystem) {
+          db.prepare(`
+            UPDATE rpg_systems
+            SET name = ?,
+                slug = ?,
+                version = ?,
+                genre = ?,
+                description = ?,
+                structure = ?,
+                is_downloaded = 1,
+                updated_at = COALESCE(?, datetime('now'))
+            WHERE id = ?
+          `).run(
+            system.name,
+            system.slug,
+            system.version || null,
+            system.genre || null,
+            system.description || null,
+            structureJson,
+            system.updated_at || null,
+            system.id
+          )
+        }
+        updatedElements.push('Sistema RPG')
+      }
+
+      // 3. Atualizar catálogo de conteúdo do sistema
+      if (content && Array.isArray(content) && system?.id) {
+        const selectContent = db.prepare(
+          'SELECT id FROM system_content WHERE rpg_system_id = ? AND type = ? AND name = ?'
+        )
+        const updateContent = db.prepare('UPDATE system_content SET data = ? WHERE id = ?')
+        const insertContent = db.prepare(`
+          INSERT INTO system_content (rpg_system_id, homebrew_id, type, name, data, created_at)
+          VALUES (?, NULL, ?, ?, ?, datetime('now'))
+        `)
+
+        for (const item of content) {
+          if (!item.name || !item.type) continue
+          const dataJson = typeof item.data === 'string' ? item.data : JSON.stringify(item.data ?? {})
+          const existing = selectContent.get(system.id, item.type, item.name) as
+            | { id: number }
+            | undefined
+          if (existing) {
+            updateContent.run(dataJson, existing.id)
+          } else {
+            insertContent.run(system.id, item.type, item.name, dataJson)
+          }
+        }
+        updatedElements.push('Catálogo de Conteúdo')
+      }
+
+      // 4. Atualizar lista de sessões
+      if (sessions && Array.isArray(sessions)) {
+        for (const s of sessions) {
+          const sTitle = s.title || `Sessão #${s.id}`
+          const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(s.id) as
+            | { id: number }
+            | undefined
+
+          if (existing) {
+            db.prepare(`
+              UPDATE sessions
+              SET title = ?,
+                  status = ?,
+                  started_at = ?,
+                  notes = ?,
+                  access_code = COALESCE(?, access_code),
+                  server_url = COALESCE(?, server_url),
+                  updated_at = COALESCE(?, datetime('now'))
+              WHERE id = ?
+            `).run(
+              sTitle,
+              s.status,
+              s.started_at || null,
+              s.notes || null,
+              s.access_code || null,
+              s.server_url || null,
+              s.updated_at || null,
+              existing.id
+            )
+          } else {
+            db.prepare(`
+              INSERT INTO sessions (id, campaign_id, title, status, started_at, notes, access_code, server_url, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), COALESCE(?, datetime('now')))
+            `).run(
+              s.id,
+              campaignId,
+              sTitle,
+              s.status,
+              s.started_at || null,
+              s.notes || null,
+              s.access_code || null,
+              s.server_url || null,
+              s.updated_at || null
+            )
+          }
+        }
+        updatedElements.push('Sessões')
+      }
+
+      // 5. Atualizar fichas de personagens recebidas do Mestre
+      if (characters && Array.isArray(characters)) {
+        for (const char of characters) {
+          if (!char.name) continue
+          const sheetStr =
+            typeof char.sheet_data === 'string'
+              ? char.sheet_data
+              : JSON.stringify(char.sheet_data ?? {})
+
+          const existingChar = db
+            .prepare('SELECT id, updated_at FROM characters WHERE campaign_id = ? AND name = ?')
+            .get(campaignId, char.name.trim()) as { id: number; updated_at?: string } | undefined
+
+          if (existingChar) {
+            db.prepare(`
+              UPDATE characters
+              SET sheet_data = ?,
+                  role = ?,
+                  avatar_url = COALESCE(?, avatar_url),
+                  updated_at = COALESCE(?, datetime('now'))
+              WHERE id = ?
+            `).run(sheetStr, char.role || 'pc', char.avatar_url || null, char.updated_at || null, existingChar.id)
+          } else {
+            db.prepare(`
+              INSERT INTO characters (campaign_id, user_id, name, avatar_url, role, sheet_data, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, datetime('now'), COALESCE(?, datetime('now')))
+            `).run(
+              campaignId,
+              userId || 1,
+              char.name.trim(),
+              char.avatar_url || null,
+              char.role || 'pc',
+              sheetStr,
+              char.updated_at || null
+            )
+          }
+        }
+        updatedElements.push('Fichas de Personagem')
+      }
+    })
+
+    syncTx()
+    return { success: true, updatedElements }
+  } catch (err) {
+    console.error('Erro ao aplicar sincronização:', err)
+    return { success: false, updatedElements: [], error: err instanceof Error ? err.message : String(err) }
   }
 }
 

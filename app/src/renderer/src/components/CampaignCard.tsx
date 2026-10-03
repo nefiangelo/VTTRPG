@@ -60,6 +60,8 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
     navigate(`/campaigns/${campaign.id}/sessions`)
   }
 
+  const isPlayerMode = Boolean(campaign.is_downloaded || campaign.my_role === 'player')
+
   return (
     <article
       onClick={handleCardClick}
@@ -67,11 +69,24 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
                  border border-vtt-dark-gray bg-vtt-dark
                  hover:border-vtt-red transition-all duration-300
                  hover:shadow-[0_0_24px_rgba(211,47,47,0.25)]
-                 hover:-translate-y-1 flex flex-col  select-none cursor-pointer'
+                 hover:-translate-y-1 flex flex-col select-none cursor-pointer'
     >
+      {/* Role Badge */}
+      <div className='absolute top-3 right-3 z-10'>
+        {isPlayerMode ? (
+          <span className='text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-950/90 text-blue-300 border border-blue-700/60 shadow-sm backdrop-blur-xs'>
+            Jogador
+          </span>
+        ) : (
+          <span className='text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-950/90 text-red-300 border border-red-700/60 shadow-sm backdrop-blur-xs'>
+            Mestre
+          </span>
+        )}
+      </div>
+
       {/* Decorative gradient banner */}
-      <div className='h-3/4  bg-linear-to-b from-vtt-dark-gray via-vtt-light-gray to-vtt-dark
-                      flex items-end justify-center text-5xl shrink-0'>
+      <div className='h-3/4 bg-linear-to-b from-vtt-dark-gray via-vtt-light-gray to-vtt-dark
+                      flex items-end justify-center text-5xl shrink-0 p-4'>
         <h3 className='mb-2 text-center text-base font-bold text-vtt-light leading-snug line-clamp-2 group-hover:text-white'>
           {campaign.title}
         </h3>
@@ -88,10 +103,10 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
           <button
             type='button'
             onClick={handleAccessClick}
-            className='w-full min-h-full rounded-lg bg-vtt-dark-gray hover:bg-vtt-light-gray transition-all duration-200 cursor-pointer text-xs'
-            title='Ver Sessões e Detalhes'
+            className='w-full min-h-full rounded-lg bg-vtt-dark-gray hover:bg-vtt-light-gray transition-all duration-200 cursor-pointer text-xs font-medium text-neutral-300'
+            title={isPlayerMode ? 'Visualizar Sessões (Somente Leitura)' : 'Ver Sessões e Detalhes'}
           >
-            Editar
+            {isPlayerMode ? 'Ver' : 'Editar'}
           </button>
         </div>
         <div className='w-2/3 h-full'>
@@ -104,7 +119,6 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
             Acessar
           </button>
         </div>
-
       </div>
     </article>
   )

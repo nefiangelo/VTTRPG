@@ -32,7 +32,7 @@ const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Western', 'Modern', 'Post
 
 
 /* ─── System Banner (Ýcones sem letras e com traço mais grosso) ────────────────────────────── */
-function SystemBanner({ genre }: { genre?: string; systemName?: string }): React.JSX.Element {
+function SystemBanner({ genre }: { genre?: string | null; systemName?: string }): React.JSX.Element {
   const lower = genre?.toLowerCase() || ''
 
   // O strokeWidth foi alterado para "2" em todos os SVGs para deixar as linhas mais marcantes e visíveis.
@@ -125,10 +125,6 @@ const IconPlus = (): React.JSX.Element => (
 const IconTrash = (): React.JSX.Element => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
 )
-const IconEdit = (): React.JSX.Element => (
-  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-)
-
 const IconDice = (): React.JSX.Element => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm8 8a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm-4-4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm-4 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm8-8a1 1 0 1 0 2 0 1 1 0 0 0-2 0z" /></svg>
 )
@@ -138,10 +134,6 @@ const IconGears = (): React.JSX.Element => (
     <circle cx="12" cy="12" r="3" />
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </svg>
-)
-
-const IconArrowLeft = (): React.JSX.Element => (
-  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
 )
 const IconScroll = (): React.JSX.Element => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
@@ -751,13 +743,6 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     }))
   }
 
-  const loadAllPresets = (): void => {
-    setContentFields(prev => ({
-      ...DEFAULT_CONTENT_FIELDS,
-      ...prev,
-    }))
-  }
-
   const clearContentFields = (ct: ContentType): void => {
     setContentFields(prev => {
       const next = { ...prev }
@@ -766,8 +751,11 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     })
   }
 
+  const isReadOnly = Boolean(initial?.is_downloaded)
+
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault()
+    if (isReadOnly) return
     setError(null)
     setLoading(true)
 
@@ -815,54 +803,6 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     </svg>
   )
 
-  // Substitutos minimalistas para Tipos de Conteúdo
-  const IconSpell = (): React.JSX.Element => (
-    // Varinha mágica lançando feitiço
-    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m8.5 11.5-5 5a2.121 2.121 0 0 0 3 3l5-5" />
-      <path d="m15 4-1.5 1.5" />
-      <path d="m20 9-1.5 1.5" />
-      <path d="m11 7-1.5 1.5" />
-      <path d="m17 13-1.5 1.5" />
-      <path d="m16 5 3 3" />
-    </svg>
-  )
-
-  const IconMonster = (): React.JSX.Element => (
-    // Caveira/Criatura
-    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M5 9c0-4 3-7 7-7s7 3 7 7v6l-3 3h-8l-3-3V9z" />
-      <path d="M9 14h6" />
-      <path d="M9 10h.01" />
-      <path d="M15 10h.01" />
-    </svg>
-  )
-
-  const IconItem = (): React.JSX.Element => (
-    // Frasco/Poção
-    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 2h6" />
-      <path d="M12 2v4" />
-      <path d="M10 6l-5 11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2l-5-11Z" />
-      <path d="M5 14h14" />
-    </svg>
-  )
-
-  const IconClass = (): React.JSX.Element => (
-    // Estrela/Emblema (Profissão)
-    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 2l3 6 6 1-4.5 4.5 1 6.5-5.5-3-5.5 3 1-6.5L3 9l6-1z" />
-    </svg>
-  )
-
-  const IconRace = (): React.JSX.Element => (
-    // Busto/Origem
-    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="8" r="5" />
-      <path d="M20 21a8 8 0 0 0-16 0" />
-    </svg>
-  )
-
   const IconInfo = (): React.JSX.Element => (
     <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="10" />
@@ -899,20 +839,40 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
       >
         {/* Header do Modal */}
         <div className="flex items-center justify-between px-8 py-5 border-b border-vtt-dark-gray shrink-0 bg-vtt-dark sticky top-0 z-10">
-          <h2 className="text-xl font-bold text-vtt-golden">
-            {initial ? 'Editar Sistema RPG' : 'Novo Sistema RPG'}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-vtt-golden">
+              {isReadOnly ? 'Visualizar Sistema RPG (Somente Leitura)' : initial ? 'Editar Sistema RPG' : 'Novo Sistema RPG'}
+            </h2>
+            {isReadOnly && (
+              <span className="text-xs px-2.5 py-0.5 rounded-full font-semibold bg-blue-500/10 border border-blue-500/30 text-blue-400">
+                Baixado
+              </span>
+            )}
+          </div>
           <button type="button" onClick={onClose}
             className="text-neutral-500 hover:text-vtt-light transition-colors text-xl cursor-pointer">✕</button>
         </div>
 
         {/* Corpo do Formulário */}
         <div className="flex flex-col gap-8 p-8">
+          {isReadOnly && (
+            <div className="p-4 rounded-xl bg-blue-950/40 border border-blue-700/50 flex items-center gap-3">
+              <span className="text-xl">ℹ️</span>
+              <div>
+                <p className="font-semibold text-blue-100">Sistema Baixado — Somente Visualização</p>
+                <p className="text-xs text-blue-300/80 mt-0.5">
+                  Este sistema foi baixado de uma sessão remota. Suas regras e estrutura estão disponíveis para consulta e não podem ser alteradas.
+                </p>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="bg-red-950/60 border border-red-700/50 text-red-400 text-sm rounded-lg px-4 py-3">{error}</div>
           )}
 
-          {/* SESSÃO 1: INFORMAÇÕES GERAIS */}
+          <fieldset disabled={isReadOnly} className="flex flex-col gap-8">
+            {/* SESSÃO 1: INFORMAÇÕES GERAIS */}
           <section className="flex flex-col gap-5 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
             <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
               <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
@@ -1166,8 +1126,10 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
               )}
             </div>
           </section>
+          </fieldset>
+
           {/* SESSÃO 3: ZONA DE PERIGO (Só aparece ao editar um sistema existente) */}
-          {initial && (
+          {!isReadOnly && initial && (
             <section className="flex flex-col gap-4 bg-red-950/10 p-6 rounded-xl border border-vtt-red/30 shadow-inner mt-4">
 
               <div className="flex items-center gap-3 border-b border-vtt-red/20 pb-3">
@@ -1223,16 +1185,28 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
 
         {/* Footer com Botões */}
         <div className="flex gap-3 px-8 py-5 border-t border-vtt-dark-gray shrink-0 bg-vtt-dark sticky bottom-0 z-10 rounded-b-2xl">
-          <button type="button" onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl border border-vtt-light-gray text-neutral-300 text-sm
-                       font-semibold hover:border-vtt-red hover:text-vtt-light transition-colors cursor-pointer">
-            Cancelar
-          </button>
-          <button type="submit" disabled={loading}
-            className="flex-1 py-2.5 rounded-xl bg-vtt-green text-white text-sm font-semibold
-                       hover:bg-vtt-light-green transition-colors disabled:opacity-50 cursor-pointer shadow-lg shadow-vtt-green/20">
-            {loading ? 'Salvando...' : initial ? 'Salvar Alterações' : 'Criar Sistema'}
-          </button>
+          {isReadOnly ? (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 py-2.5 rounded-xl bg-vtt-golden text-vtt-dark text-sm font-semibold hover:brightness-110 transition-all cursor-pointer shadow-lg shadow-vtt-golden/20"
+            >
+              Fechar
+            </button>
+          ) : (
+            <>
+              <button type="button" onClick={onClose}
+                className="flex-1 py-2.5 rounded-xl border border-vtt-light-gray text-neutral-300 text-sm
+                           font-semibold hover:border-vtt-red hover:text-vtt-light transition-colors cursor-pointer">
+                Cancelar
+              </button>
+              <button type="submit" disabled={loading}
+                className="flex-1 py-2.5 rounded-xl bg-vtt-green text-white text-sm font-semibold
+                           hover:bg-vtt-light-green transition-colors disabled:opacity-50 cursor-pointer shadow-lg shadow-vtt-green/20">
+                {loading ? 'Salvando...' : initial ? 'Salvar Alterações' : 'Criar Sistema'}
+              </button>
+            </>
+          )}
         </div>
       </form>
     </div>
@@ -1272,10 +1246,10 @@ function DeleteModal({ system, onClose, onDeleted }: { system: RpgSystemFull; on
 }
 
 /* ??? System Card ????????????????????????????????? */
-function SystemCard({ system, onEdit, onDelete, onView }: {
+function SystemCard({ system, onEdit, onView }: {
   system: RpgSystemFull
   onEdit: () => void
-  onDelete: () => void
+  onDelete?: () => void
   onView: () => void
 }): React.JSX.Element {
 
@@ -1306,6 +1280,12 @@ function SystemCard({ system, onEdit, onDelete, onView }: {
                   v{system.version}
                 </span>
               )}
+
+              {system.is_downloaded && (
+                <span className="shrink-0 text-[10px] text-blue-300 font-semibold bg-blue-950/80 px-2 py-0.5 rounded border border-blue-700/60 mt-0.5">
+                  Baixado
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -1317,7 +1297,7 @@ function SystemCard({ system, onEdit, onDelete, onView }: {
             className="w-1/3 flex items-center justify-center gap-1 py-2 px-3 rounded-lg
                         bg-transparent hover:bg-vtt-dark-gray/50 border border-transparent hover:border-vtt-light-gray
                         text-vtt-light-gray hover:text-vtt-golden transition-all duration-200 cursor-pointer group/edit"
-            title="Editar">
+            title={system.is_downloaded ? "Visualizar Sistema (Somente Leitura)" : "Editar"}>
             <div className="transform group-hover/edit:rotate-45 transition-all duration-300 shrink-0 flex items-center justify-center">
               <IconGears />
             </div>

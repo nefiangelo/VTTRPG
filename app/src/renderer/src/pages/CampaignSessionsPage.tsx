@@ -269,8 +269,8 @@ export default function CampaignSessionsPage(): React.JSX.Element {
     return s.status === filter
   })
 
-  // Permissão de mestre
-  const isGM = campaign?.owner_id === user?.id || members.some(m => m.user_id === user?.id && m.role === 'gm')
+  // Permissão de mestre (Campanhas baixadas são sempre apenas para visualização do jogador)
+  const isGM = !campaign?.is_downloaded && (campaign?.owner_id === user?.id || members.some(m => m.user_id === user?.id && m.role === 'gm'))
 
   return (
     <div className='flex flex-row h-screen overflow-hidden'>
@@ -313,6 +313,19 @@ export default function CampaignSessionsPage(): React.JSX.Element {
             </button>
           </div>
         )}
+
+        {/* Banner de Campanha Baixada */}
+        {campaign?.is_downloaded ? (
+          <div className='bg-blue-950/40 border border-blue-700/50 text-blue-200 text-sm rounded-xl px-5 py-3.5 flex items-center gap-3 shadow-md'>
+            <span className='text-xl shrink-0'>ℹ️</span>
+            <div>
+              <p className='font-semibold text-blue-100'>Campanha Baixada — Somente Visualização</p>
+              <p className='text-xs text-blue-300/80 mt-0.5'>
+                Você baixou esta campanha ao conectar à sessão do Mestre. Como jogador, o conteúdo e histórico de sessões estão disponíveis apenas para consulta. Suas fichas de personagens locais serão sincronizadas automaticamente ao reconectar com o Mestre.
+              </p>
+            </div>
+          </div>
+        ) : null}
 
         {/* Campaign Header Details */}
         {isLoading ? (

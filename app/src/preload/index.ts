@@ -41,6 +41,19 @@ const api = {
       ipcRenderer.invoke('session:delete', id),
     importBundle: (payload: { bundle: unknown; userId: number; serverUrl?: string }) =>
       ipcRenderer.invoke('session:importBundle', payload),
+    applySyncUpdate: (payload: unknown, userId?: number) =>
+      ipcRenderer.invoke('session:applySyncUpdate', payload, userId),
+  },
+
+  characters: {
+    getByCampaign: (campaignId: number, userId?: number) =>
+      ipcRenderer.invoke('character:getByCampaign', campaignId, userId),
+    getById: (id: number) =>
+      ipcRenderer.invoke('character:getById', id),
+    save: (payload: unknown) =>
+      ipcRenderer.invoke('character:save', payload),
+    delete: (id: number, userId: number, isGM?: boolean) =>
+      ipcRenderer.invoke('character:delete', id, userId, isGM),
   },
 
   systems: {

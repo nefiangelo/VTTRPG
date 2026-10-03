@@ -31,6 +31,7 @@ export interface RpgSystemFull {
   description: string | null
   structure: SystemStructure
   created_by: number | null
+  is_downloaded?: number
   created_at: string
   updated_at: string
 }
@@ -161,6 +162,9 @@ export function updateRpgSystem(payload: UpdateRpgSystemPayload): RpgSystemResul
   const db = getDb()
   const existing = getRpgSystemById(payload.id)
   if (!existing) return { success: false, error: 'Sistema nao encontrado.' }
+  if (existing.is_downloaded) {
+    return { success: false, error: 'Sistemas baixados são de somente leitura e não podem ser alterados.' }
+  }
   const name = payload.name?.trim() ?? existing.name
   const slug = payload.slug?.trim() ?? (payload.name ? slugify(name) : existing.slug)
   const version = payload.version !== undefined ? (payload.version?.trim() ?? null) : existing.version
@@ -180,6 +184,10 @@ export function updateRpgSystem(payload: UpdateRpgSystemPayload): RpgSystemResul
 export function deleteRpgSystem(id: number): { success: boolean; error?: string } {
   const db = getDb()
   try {
+    const existing = db.prepare('SELECT is_downloaded FROM rpg_systems WHERE id = ?').get(id) as { is_downloaded?: number } | undefined
+    if (existing?.is_downloaded) {
+      return { success: false, error: 'Sistemas baixados não podem ser excluídos.' }
+    }
     const info = db.prepare('DELETE FROM rpg_systems WHERE id = ?').run(id)
     if (info.changes === 0) return { success: false, error: 'Sistema nao encontrado.' }
     return { success: true }
@@ -200,6 +208,12 @@ export function createSystemContent(payload: CreateContentPayload): ContentResul
   const db = getDb()
   if (!payload.name?.trim()) return { success: false, error: 'Nome e obrigatorio.' }
   if (!CONTENT_TYPES.includes(payload.type)) return { success: false, error: 'Tipo invalido.' }
+
+  const sys = db.prepare('SELECT is_downloaded FROM rpg_systems WHERE id = ?').get(payload.rpg_system_id) as { is_downloaded?: number } | undefined
+  if (sys?.is_downloaded) {
+    return { success: false, error: 'Não é possível adicionar conteúdo a um sistema baixado (somente leitura).' }
+  }
+
   try {
     const info = db.prepare(`INSERT INTO system_content (rpg_system_id,homebrew_id,type,name,data) VALUES (@rpg_system_id,@homebrew_id,@type,@name,@data)`).run({
       rpg_system_id: payload.rpg_system_id,
@@ -217,8 +231,18 @@ export function createSystemContent(payload: CreateContentPayload): ContentResul
 
 export function updateSystemContent(payload: UpdateContentPayload): ContentResult {
   const db = getDb()
-  const existing = db.prepare('SELECT * FROM system_content WHERE id=?').get(payload.id) as Record<string, unknown> | undefined
+  const existing = db.prepare(`
+    SELECT sc.*, s.is_downloaded
+    FROM system_content sc
+    JOIN rpg_systems s ON s.id = sc.rpg_system_id
+    WHERE sc.id = ?
+  `).get(payload.id) as (Record<string, unknown> & { is_downloaded?: number }) | undefined
+
   if (!existing) return { success: false, error: 'Conteudo nao encontrado.' }
+  if (existing.is_downloaded) {
+    return { success: false, error: 'Conteúdo de sistemas baixados não pode ser modificado.' }
+  }
+
   const name = payload.name?.trim() ?? (existing.name as string)
   const data = payload.data !== undefined ? JSON.stringify(payload.data) : (existing.data as string)
   try {
@@ -232,6 +256,18 @@ export function updateSystemContent(payload: UpdateContentPayload): ContentResul
 
 export function deleteSystemContent(id: number): { success: boolean; error?: string } {
   const db = getDb()
+  const existing = db.prepare(`
+    SELECT sc.*, s.is_downloaded
+    FROM system_content sc
+    JOIN rpg_systems s ON s.id = sc.rpg_system_id
+    WHERE sc.id = ?
+  `).get(id) as { is_downloaded?: number } | undefined
+
+  if (!existing) return { success: false, error: 'Conteudo nao encontrado.' }
+  if (existing.is_downloaded) {
+    return { success: false, error: 'Conteúdo de sistemas baixados não pode ser excluído.' }
+  }
+
   const info = db.prepare('DELETE FROM system_content WHERE id=?').run(id)
   if (info.changes === 0) return { success: false, error: 'Conteudo nao encontrado.' }
   return { success: true }
