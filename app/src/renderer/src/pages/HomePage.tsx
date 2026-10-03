@@ -1,7 +1,8 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
 import CampaignCard from '../components/CampaignCard'
+import EditCampaignModal from '../components/EditCampaignModal'
 import { useCampaigns } from '../context/CampaignContext'
 import type { Campaign } from '../../../preload/index.d'
 
@@ -16,6 +17,7 @@ function SkeletonCard(): React.JSX.Element {
 export default function HomePage(): React.JSX.Element {
   const navigate = useNavigate()
   const { campaigns, isLoading } = useCampaigns()
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null)
 
   return (
     <div className='flex flex-row h-screen overflow-hidden'>
@@ -48,6 +50,7 @@ export default function HomePage(): React.JSX.Element {
                       key={c.id}
                       campaign={c}
                       onClick={() => navigate(`/campaigns/${c.id}/sessions`)}
+                      onEdit={(camp) => setEditingCampaign(camp)}
                     />
                   ))}
                 </div>
@@ -56,6 +59,14 @@ export default function HomePage(): React.JSX.Element {
           </>
         )}
       </main>
+
+      {/* Edit Campaign Modal */}
+      {editingCampaign && (
+        <EditCampaignModal
+          campaign={editingCampaign}
+          onClose={() => setEditingCampaign(null)}
+        />
+      )}
     </div>
   )
 }

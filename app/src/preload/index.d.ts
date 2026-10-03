@@ -41,6 +41,14 @@ export interface CreateCampaignPayload {
   owner_id: number
 }
 
+export interface UpdateCampaignPayload {
+  id: number
+  title?: string
+  description?: string | null
+  status?: 'active' | 'paused' | 'finished'
+  rpg_system_id?: number
+}
+
 export interface RpgSystem {
   id: number
   name: string
@@ -369,6 +377,8 @@ interface API {
   }
   campaigns: {
     create: (payload: CreateCampaignPayload) => Promise<CampaignResult>
+    update: (payload: UpdateCampaignPayload) => Promise<CampaignResult>
+    delete: (id: number) => Promise<{ success: boolean; error?: string }>
     getByUser: (userId: number) => Promise<Campaign[]>
     getById: (id: number) => Promise<CampaignWithDetails | null>
     getMembers: (campaignId: number) => Promise<CampaignMember[]>

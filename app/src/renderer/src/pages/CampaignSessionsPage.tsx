@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
+import EditCampaignModal from '../components/EditCampaignModal'
 import { useAuth } from '../context/AuthContext'
 import type { Session, CampaignWithDetails, CampaignMember } from '../../../preload/index.d'
 
@@ -17,6 +18,7 @@ export default function CampaignSessionsPage(): React.JSX.Element {
   const [filter, setFilter] = useState<'all' | 'active' | 'scheduled' | 'completed'>('all')
 
   // Modais
+  const [showEditCampaignModal, setShowEditCampaignModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createTitle, setCreateTitle] = useState('')
   const [createNotes, setCreateNotes] = useState('')
@@ -333,17 +335,31 @@ export default function CampaignSessionsPage(): React.JSX.Element {
             « Voltar para Campanhas
           </button>
 
-          {isGM && (
-            <button
-              type='button'
-              onClick={handleOpenCreateModal}
-              className='flex items-center gap-2 px-4 py-2 rounded-lg bg-vtt-red text-white text-sm font-semibold
-                         hover:bg-red-700 transition-colors cursor-pointer shadow-md'
-            >
-              <span>+</span>
-              <span>Nova Sessão</span>
-            </button>
-          )}
+          <div className='flex items-center gap-3'>
+            {campaign && (
+              <button
+                type='button'
+                onClick={() => setShowEditCampaignModal(true)}
+                className='flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-vtt-dark-gray border border-vtt-light-gray text-neutral-300 text-sm font-medium hover:bg-vtt-light-gray hover:text-white transition-colors cursor-pointer shadow-sm'
+                title={isGM ? 'Editar configurações da campanha' : 'Gerenciar campanha'}
+              >
+                <span>⚙️</span>
+                <span>Editar Campanha</span>
+              </button>
+            )}
+
+            {isGM && (
+              <button
+                type='button'
+                onClick={handleOpenCreateModal}
+                className='flex items-center gap-2 px-4 py-2 rounded-lg bg-vtt-red text-white text-sm font-semibold
+                           hover:bg-red-700 transition-colors cursor-pointer shadow-md'
+              >
+                <span>+</span>
+                <span>Nova Sessão</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Action Error Banner */}
@@ -1043,6 +1059,16 @@ export default function CampaignSessionsPage(): React.JSX.Element {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── MODAL: EDITAR CAMPANHA ───────────────────────────────────────── */}
+      {showEditCampaignModal && campaign && (
+        <EditCampaignModal
+          campaign={campaign}
+          onClose={() => setShowEditCampaignModal(false)}
+          onUpdated={() => loadData()}
+          onDeleted={() => navigate('/home')}
+        />
       )}
     </div>
   )

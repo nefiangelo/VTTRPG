@@ -3,7 +3,7 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { register, login } from './auth'
-import { createCampaign, getCampaignsByUser, getRpgSystems, getCampaignById, getCampaignMembers } from './campaign'
+import { createCampaign, getCampaignsByUser, getRpgSystems, getCampaignById, getCampaignMembers, updateCampaign, deleteCampaign, UpdateCampaignPayload } from './campaign'
 import {
   getSessionsByCampaign,
   getSessionById,
@@ -100,6 +100,16 @@ app.whenReady().then(() => {
   ipcMain.handle('campaign:create', (_e, payload: CreateCampaignPayload) =>
     createCampaign(payload)
   )
+  ipcMain.handle('campaign:update', (_e, payload: UpdateCampaignPayload) =>
+    updateCampaign(payload)
+  )
+  ipcMain.handle('campaign:delete', async (_e, id: number) => {
+    const status = getSessionServerStatus()
+    if (status.isRunning && status.campaignId === id) {
+      await stopSessionServer()
+    }
+    return deleteCampaign(id)
+  })
   ipcMain.handle('campaign:getByUser', (_e, userId: number) =>
     getCampaignsByUser(userId)
   )

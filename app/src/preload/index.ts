@@ -20,6 +20,10 @@ const api = {
       ipcRenderer.invoke('campaign:getMembers', campaignId),
     getSystems: () =>
       ipcRenderer.invoke('campaign:getSystems'),
+    update: (payload: { id: number; title?: string; description?: string | null; status?: string; rpg_system_id?: number }) =>
+      ipcRenderer.invoke('campaign:update', payload),
+    delete: (id: number) =>
+      ipcRenderer.invoke('campaign:delete', id),
   },
 
   sessions: {

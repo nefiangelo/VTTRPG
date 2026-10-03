@@ -123,3 +123,68 @@ export function getCampaignMembers(campaignId: number): CampaignMemberWithUser[]
   `).all(campaignId) as CampaignMemberWithUser[]
 }
 
+export interface UpdateCampaignPayload {
+  id: number
+  title?: string
+  description?: string | null
+  status?: 'active' | 'paused' | 'finished'
+  rpg_system_id?: number
+}
+
+export function updateCampaign(payload: UpdateCampaignPayload): CampaignResult {
+  const db = getDb()
+
+  const existing = db.prepare('SELECT * FROM campaigns WHERE id = ?').get(payload.id) as Campaign | undefined
+  if (!existing) {
+    return { success: false, error: 'Campanha não encontrada.' }
+  }
+
+  const title = payload.title !== undefined ? payload.title.trim() : existing.title
+  if (!title) {
+    return { success: false, error: 'O título da campanha não pode ser vazio.' }
+  }
+
+  const description =
+    payload.description !== undefined ? (payload.description?.trim() || null) : existing.description
+
+  const status = payload.status !== undefined ? payload.status : existing.status
+  if (!['active', 'paused', 'finished'].includes(status)) {
+    return { success: false, error: 'Status da campanha inválido.' }
+  }
+
+  const rpg_system_id =
+    payload.rpg_system_id !== undefined ? payload.rpg_system_id : existing.rpg_system_id
+  const system = db.prepare('SELECT id FROM rpg_systems WHERE id = ?').get(rpg_system_id)
+  if (!system) {
+    return { success: false, error: 'Sistema RPG inválido.' }
+  }
+
+  try {
+    db.prepare(`
+      UPDATE campaigns
+      SET title = ?, description = ?, status = ?, rpg_system_id = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `).run(title, description, status, rpg_system_id, payload.id)
+
+    const updated = getCampaignById(payload.id)
+    return { success: true, campaign: updated ?? undefined }
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export function deleteCampaign(id: number): { success: boolean; error?: string } {
+  const db = getDb()
+  try {
+    const existing = db.prepare('SELECT id FROM campaigns WHERE id = ?').get(id)
+    if (!existing) {
+      return { success: false, error: 'Campanha não encontrada.' }
+    }
+
+    db.prepare('DELETE FROM campaigns WHERE id = ?').run(id)
+    return { success: true }
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+

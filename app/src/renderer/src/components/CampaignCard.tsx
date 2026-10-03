@@ -1,26 +1,15 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Campaign } from '../../../preload/index.d'
-
+import { STATUS_LABEL, STATUS_COLOR } from '../utils/campaignConstants'
 
 interface Props {
   campaign?: Campaign
   onClick?: () => void
+  onEdit?: (campaign: Campaign) => void
 }
 
-export const STATUS_LABEL: Record<Campaign['status'], string> = {
-  active: 'Ativa',
-  paused: 'Pausada',
-  finished: 'Finalizada',
-}
-
-export const STATUS_COLOR: Record<Campaign['status'], string> = {
-  active: 'bg-green-600',
-  paused: 'bg-yellow-600',
-  finished: 'bg-neutral-500',
-}
-
-export default function CampaignCard({ campaign, onClick }: Props): React.JSX.Element {
+export default function CampaignCard({ campaign, onClick, onEdit }: Props): React.JSX.Element {
   const navigate = useNavigate()
 
   if (campaign == undefined) {
@@ -47,7 +36,7 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
     )
   }
 
-  const handleCardClick = () => {
+  const handleCardClick = (): void => {
     if (onClick) {
       onClick()
     } else {
@@ -55,9 +44,16 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
     }
   }
 
-  const handleAccessClick = (e: React.MouseEvent) => {
+  const handleAccessClick = (e: React.MouseEvent): void => {
     e.stopPropagation()
     navigate(`/campaigns/${campaign.id}/sessions`)
+  }
+
+  const handleEditClick = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+    if (onEdit) {
+      onEdit(campaign)
+    }
   }
 
   const isPlayerMode = Boolean(campaign.is_downloaded || campaign.my_role === 'player')
@@ -71,6 +67,17 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
                  hover:shadow-[0_0_24px_rgba(211,47,47,0.25)]
                  hover:-translate-y-1 flex flex-col select-none cursor-pointer'
     >
+      {/* Status Badge */}
+      <div className='absolute top-3 left-3 z-10'>
+        <span
+          className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full text-white ${
+            STATUS_COLOR[campaign.status || 'active']
+          } shadow-xs backdrop-blur-xs`}
+        >
+          {STATUS_LABEL[campaign.status || 'active']}
+        </span>
+      </div>
+
       {/* Role Badge */}
       <div className='absolute top-3 right-3 z-10'>
         {isPlayerMode ? (
@@ -102,11 +109,11 @@ export default function CampaignCard({ campaign, onClick }: Props): React.JSX.El
         <div className='w-1/3 h-full flex flex-col gap-2 justify-center'>
           <button
             type='button'
-            onClick={handleAccessClick}
-            className='w-full min-h-full rounded-lg bg-vtt-dark-gray hover:bg-vtt-light-gray transition-all duration-200 cursor-pointer text-xs font-medium text-neutral-300'
-            title={isPlayerMode ? 'Visualizar Sessões (Somente Leitura)' : 'Ver Sessões e Detalhes'}
+            onClick={handleEditClick}
+            className='w-full min-h-full rounded-lg bg-vtt-dark-gray hover:bg-vtt-light-gray transition-all duration-200 cursor-pointer text-xs font-medium text-neutral-300 hover:text-white flex items-center justify-center'
+            title={isPlayerMode ? 'Gerenciar Campanha' : 'Editar Configurações da Campanha'}
           >
-            {isPlayerMode ? 'Ver' : 'Editar'}
+            Editar
           </button>
         </div>
         <div className='w-2/3 h-full'>
