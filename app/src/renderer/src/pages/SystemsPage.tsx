@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FilterContent } from '../components/FilterContent'
 import Sidebar from '../components/Sidebar/Sidebar'
 import { useAuth } from '../context/AuthContext'
 import { useCampaigns } from '../context/CampaignContext'
@@ -28,6 +29,95 @@ function reorder<T>(list: T[], startIndex: number, endIndex: number): T[] {
 
 const GENRE_OPTIONS = ['Fantasy', 'Sci-Fi', 'Horror', 'Western', 'Modern', 'Post-Apocalyptic', 'Cyberpunk', 'Steampunk', 'Medieval', 'Outro']
 
+
+
+/* ─── System Banner (Ýcones sem letras e com traço mais grosso) ────────────────────────────── */
+function SystemBanner({ genre }: { genre?: string; systemName?: string }): React.JSX.Element {
+  const lower = genre?.toLowerCase() || ''
+
+  // O strokeWidth foi alterado para "2" em todos os SVGs para deixar as linhas mais marcantes e visíveis.
+  let BigIcon = (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+      <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2" />
+      <line x1="12" y1="22" x2="12" y2="15.5" />
+      <polyline points="22 8.5 12 15.5 2 8.5" />
+      <polyline points="2 15.5 12 8.5 22 15.5" />
+      <line x1="12" y1="2" x2="12" y2="8.5" />
+    </svg> // D20 (Padrão)
+  )
+
+  if (lower.includes('fantasy') || lower.includes('medieval')) {
+    BigIcon = (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+        <polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5" />
+        <line x1="13" y1="19" x2="19" y2="13" />
+        <line x1="16" y1="16" x2="20" y2="20" />
+        <line x1="19" y1="21" x2="21" y2="19" />
+        <polyline points="14.5 6.5 18 3 21 3 21 6 17.5 9.5" />
+        <line x1="5" y1="14" x2="9" y2="18" />
+        <line x1="7" y1="17" x2="4" y2="20" />
+        <line x1="3" y1="19" x2="5" y2="21" />
+      </svg> // Espadas Cruzadas
+    )
+  } else if (lower.includes('cyberpunk') || lower.includes('sci-fi')) {
+    BigIcon = (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+        <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
+        <rect x="9" y="9" width="6" height="6" />
+        <line x1="9" y1="1" x2="9" y2="4" />
+        <line x1="15" y1="1" x2="15" y2="4" />
+        <line x1="9" y1="20" x2="9" y2="23" />
+        <line x1="15" y1="20" x2="15" y2="23" />
+        <line x1="20" y1="9" x2="23" y2="9" />
+        <line x1="20" y1="14" x2="23" y2="14" />
+        <line x1="1" y1="9" x2="4" y2="9" />
+        <line x1="1" y1="14" x2="4" y2="14" />
+      </svg> // Microchip
+    )
+  } else if (lower.includes('horror')) {
+    BigIcon = (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+        <circle cx="9" cy="12" r="1" />
+        <circle cx="15" cy="12" r="1" />
+        <path d="M8 20v2h8v-2" />
+        <path d="M12.5 17l-.5-1-.5 1h1z" />
+        <path d="M16 20a2 2 0 0 0 1.56-3.25 8 8 0 1 0-11.12 0A2 2 0 0 0 8 20" />
+      </svg> // Caveira
+    )
+  } else if (lower.includes('western')) {
+    BigIcon = (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="22" y1="12" x2="18" y2="12" />
+        <line x1="6" y1="12" x2="2" y2="12" />
+        <line x1="12" y1="6" x2="12" y2="2" />
+        <line x1="12" y1="22" x2="12" y2="18" />
+      </svg> // Mira / Crosshair
+    )
+  } else if (lower.includes('post-apocalyptic')) {
+    BigIcon = (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full">
+        <path d="M12 12h.01" />
+        <path d="M7.5 4.2c-.3-.5-.9-.7-1.3-.4C3.9 5.5 2 9.2 2 13c0 .5.4 1 1 1h5c.5 0 1-.4 1-1 0-1.8.8-3.4 2-4.5" />
+        <path d="M21 13c0-3.8-1.9-7.5-4.2-9.2-.4-.3-1-.1-1.3.4l-2.4 4.1c1.2 1.1 2 2.7 2 4.5 0 .5.4 1 1 1h5c.5 0 1-.4 1-1Z" />
+        <path d="M8.2 15.5c-.4.4-.5 1-.2 1.4 1.8 3.1 5.3 4.9 8.5 3.9.5-.1.8-.7.6-1.1l-2.7-4c-.9.9-2.2 1.4-3.6 1.4-1.2 0-2.3-.4-3.2-1-.4-.3-1-.2-1.4.2Z" />
+      </svg> // Radiação
+    )
+  }
+
+  return (
+    <div className="w-full h-24 bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] relative shrink-0 border-b border-vtt-dark-gray overflow-hidden">
+      {/* Ýcone Único 
+          - Tamanho mantido w-28 h-28
+          - No hover, ganha cor dourada e brilho sutil */}
+      <div className="absolute -right-4 -bottom-4 w-28 h-28 text-[#262626] transition-all duration-300 ease-in-out group-hover:text-vtt-golden group-hover:drop-shadow-[0_0_8px_rgba(233,209,128,0.3)] pointer-events-none">
+        {BigIcon}
+      </div>
+    </div>
+  )
+}
+
+
 /* ─── Icons ──────────────────────────────────────────────────── */
 const IconPlus = (): React.JSX.Element => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
@@ -38,9 +128,18 @@ const IconTrash = (): React.JSX.Element => (
 const IconEdit = (): React.JSX.Element => (
   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
 )
+
 const IconDice = (): React.JSX.Element => (
   <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm8 8a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm-4-4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm-4 4a1 1 0 1 0 2 0 1 1 0 0 0-2 0zm8-8a1 1 0 1 0 2 0 1 1 0 0 0-2 0z" /></svg>
 )
+
+const IconGears = (): React.JSX.Element => (
+  <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+)
+
 const IconArrowLeft = (): React.JSX.Element => (
   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
 )
@@ -57,6 +156,49 @@ const IconGrip = (): React.JSX.Element => (
     <circle cx="15.5" cy="18" r="1.5" />
   </svg>
 )
+
+// IMPORTAR SISTEMAS A PARTIR DE ARQUIVOS
+const IconFileImport = (): React.JSX.Element => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="M12 12v6" />
+    <path d="M9 15l3 3 3-3" />
+  </svg>
+)
+
+/* ─── Import System Modal (EM DEV) ──────────────────────────── */
+function ImportModal({ onClose }: { onClose: () => void }): React.JSX.Element {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="w-full max-w-md bg-vtt-dark border border-vtt-dark-gray rounded-2xl p-8 shadow-2xl flex flex-col gap-5">
+        <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-3">
+          <h2 className="text-lg font-bold text-vtt-golden flex items-center gap-2">
+            <IconFileImport /> Importar Sistema
+          </h2>
+          <button type="button" onClick={onClose} className="text-neutral-500 hover:text-vtt-light transition-colors text-xl cursor-pointer">✕</button>
+        </div>
+
+        <div className="flex flex-col items-center justify-center py-10 border-2 border-dashed border-vtt-dark-gray rounded-xl bg-vtt-dark-gray/20">
+          <div className="text-vtt-golden/50 mb-3 transform scale-150">
+            <IconFileImport />
+          </div>
+          <p className="text-neutral-400 text-sm text-center px-4">
+            A importação de sistemas (JSON) estará disponível em atualizações futuras.
+          </p>
+        </div>
+
+        <div className="flex justify-end mt-2">
+          <button type="button" onClick={onClose}
+            className="w-full py-2.5 rounded-lg border border-vtt-light-gray text-neutral-300 text-sm font-semibold hover:border-vtt-golden hover:text-vtt-golden transition-colors cursor-pointer">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 /* ─── Attribute Field Row ────────────────────────────────────── */
 function FieldRow({
@@ -114,13 +256,12 @@ function FieldRow({
         setIsHandlePressed(false)
         onDragEnd?.(e)
       }}
-      className={`flex items-center gap-2 bg-vtt-dark-gray/40 rounded-lg p-2.5 group/field transition-all duration-150 border ${
-        isDragging
-          ? 'opacity-40 border-dashed border-vtt-red/60 scale-[0.99] bg-vtt-dark-gray/20'
-          : isOver
-            ? 'border-vtt-red/80 ring-2 ring-vtt-red/50 bg-red-950/20 shadow-[0_0_12px_rgba(211,47,47,0.25)]'
-            : 'border-transparent hover:border-vtt-dark-gray'
-      }`}
+      className={`flex items-center gap-2 bg-vtt-dark-gray/40 rounded-lg p-2.5 group/field transition-all duration-150 border ${isDragging
+        ? 'opacity-40 border-dashed border-vtt-red/60 scale-[0.99] bg-vtt-dark-gray/20'
+        : isOver
+          ? 'border-vtt-red/80 ring-2 ring-vtt-red/50 bg-red-950/20 shadow-[0_0_12px_rgba(211,47,47,0.25)]'
+          : 'border-transparent hover:border-vtt-dark-gray'
+        }`}
     >
       <div
         onMouseDown={() => setIsHandlePressed(true)}
@@ -143,10 +284,10 @@ function FieldRow({
             label: newLabel,
             key: shouldAutoKey
               ? newLabel
-                  .normalize('NFD')
-                  .replace(/[\u0300-\u036f]/g, '')
-                  .replace(/[^a-zA-Z0-9_]/g, '_')
-                  .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '')
+                .replace(/[^a-zA-Z0-9_]/g, '_')
+                .toLowerCase()
               : field.key,
           })
         }}
@@ -290,13 +431,12 @@ function GroupCard({
         setIsHandlePressed(false)
         onDragEndGroup?.(e)
       }}
-      className={`border rounded-xl bg-vtt-dark overflow-hidden transition-all duration-150 ${
-        isDraggingGroup
-          ? 'opacity-40 border-dashed border-vtt-red/60 scale-[0.99]'
-          : isOverGroup
-            ? 'border-vtt-red ring-2 ring-vtt-red/50 shadow-[0_0_16px_rgba(211,47,47,0.3)]'
-            : 'border-vtt-dark-gray'
-      }`}
+      className={`border rounded-xl bg-vtt-dark overflow-hidden transition-all duration-150 ${isDraggingGroup
+        ? 'opacity-40 border-dashed border-vtt-red/60 scale-[0.99]'
+        : isOverGroup
+          ? 'border-vtt-red ring-2 ring-vtt-red/50 shadow-[0_0_16px_rgba(211,47,47,0.3)]'
+          : 'border-vtt-dark-gray'
+        }`}
     >
       {/* Group header */}
       <div className="flex items-center gap-3 px-4 py-3 bg-vtt-dark-gray/30 border-b border-vtt-dark-gray">
@@ -390,6 +530,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [version, setVersion] = useState(initial?.version ?? '')
   const [genre, setGenre] = useState(initial?.genre ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
+
   const [groups, setGroups] = useState<AttributeGroup[]>(() => {
     return (initial?.structure?.attributeGroups ?? []).map(g => ({
       ...g,
@@ -404,6 +545,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [selectedContentType, setSelectedContentType] = useState<ContentType>('class')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   /* ─── Content Fields DnD ───────────────────────────────────── */
   const [draggedContentField, setDraggedContentField] = useState<number | null>(null)
@@ -655,6 +797,96 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     onSaved()
   }
 
+  const IconBox = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+      <path d="m3.3 7 8.7 5 8.7-5" />
+      <path d="M12 22V12" />
+    </svg>
+  )
+
+  const IconCharacter = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M16 13H8" />
+      <path d="M16 17H8" />
+      <path d="M10 9H8" />
+    </svg>
+  )
+
+  // Substitutos minimalistas para Tipos de Conteúdo
+  const IconSpell = (): React.JSX.Element => (
+    // Varinha mágica lançando feitiço
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m8.5 11.5-5 5a2.121 2.121 0 0 0 3 3l5-5" />
+      <path d="m15 4-1.5 1.5" />
+      <path d="m20 9-1.5 1.5" />
+      <path d="m11 7-1.5 1.5" />
+      <path d="m17 13-1.5 1.5" />
+      <path d="m16 5 3 3" />
+    </svg>
+  )
+
+  const IconMonster = (): React.JSX.Element => (
+    // Caveira/Criatura
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 9c0-4 3-7 7-7s7 3 7 7v6l-3 3h-8l-3-3V9z" />
+      <path d="M9 14h6" />
+      <path d="M9 10h.01" />
+      <path d="M15 10h.01" />
+    </svg>
+  )
+
+  const IconItem = (): React.JSX.Element => (
+    // Frasco/Poção
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 2h6" />
+      <path d="M12 2v4" />
+      <path d="M10 6l-5 11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2l-5-11Z" />
+      <path d="M5 14h14" />
+    </svg>
+  )
+
+  const IconClass = (): React.JSX.Element => (
+    // Estrela/Emblema (Profissão)
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l3 6 6 1-4.5 4.5 1 6.5-5.5-3-5.5 3 1-6.5L3 9l6-1z" />
+    </svg>
+  )
+
+  const IconRace = (): React.JSX.Element => (
+    // Busto/Origem
+    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="5" />
+      <path d="M20 21a8 8 0 0 0-16 0" />
+    </svg>
+  )
+
+  const IconInfo = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </svg>
+  )
+
+  const IconLayers = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 2 7 12 12 22 7 12 2" />
+      <polyline points="2 17 12 22 22 17" />
+      <polyline points="2 12 12 17 22 12" />
+    </svg>
+  )
+
+  const IconAlert = (): React.JSX.Element => (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </svg>
+  )
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
@@ -665,281 +897,340 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
         className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-vtt-dark border border-vtt-dark-gray
                    rounded-2xl flex flex-col shadow-2xl"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-8 py-5 border-b border-vtt-dark-gray shrink-0">
-          <h2 className="text-xl font-bold text-vtt-light">
+        {/* Header do Modal */}
+        <div className="flex items-center justify-between px-8 py-5 border-b border-vtt-dark-gray shrink-0 bg-vtt-dark sticky top-0 z-10">
+          <h2 className="text-xl font-bold text-vtt-golden">
             {initial ? 'Editar Sistema RPG' : 'Novo Sistema RPG'}
           </h2>
           <button type="button" onClick={onClose}
             className="text-neutral-500 hover:text-vtt-light transition-colors text-xl cursor-pointer">✕</button>
         </div>
 
-        <div className="flex flex-col gap-6 p-8">
+        {/* Corpo do Formulário */}
+        <div className="flex flex-col gap-8 p-8">
           {error && (
             <div className="bg-red-950/60 border border-red-700/50 text-red-400 text-sm rounded-lg px-4 py-3">{error}</div>
           )}
 
-          {/* Basic info row */}
-          <div className="flex gap-4">
-            <label className="flex-[2] flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} required
-                placeholder="ex: D&D 5e"
-                className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
-            </label>
-            <label className="flex-1 flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
-              <input type="text" value={version} onChange={e => setVersion(e.target.value)}
-                placeholder="ex: 5.1"
-                className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
-            </label>
-          </div>
-
-          <div className="flex gap-4">
-            <label className="flex-1 flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
-              <select value={genre} onChange={e => setGenre(e.target.value)}
-                className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
-                           text-sm outline-none focus:border-vtt-green transition-colors cursor-pointer">
-                <option value="">Selecionar...</option>
-                {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-              </select>
-            </label>
-            <label className="flex-[2] flex flex-col gap-1.5">
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
-              <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-                placeholder="Breve descrição do sistema..."
-                className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                           py-1.5 text-sm outline-none focus:border-vtt-green transition-colors" />
-            </label>
-          </div>
-
-          {/* Builder section tabs */}
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center justify-between border-b border-vtt-dark-gray pb-2 flex-wrap gap-2">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setActiveBuilderTab('content')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                    activeBuilderTab === 'content'
-                      ? 'bg-vtt-dark-green/40 text-vtt-light-green border border-vtt-green/40'
-                      : 'text-neutral-400 hover:text-vtt-light bg-vtt-dark-gray/30'
-                  }`}
-                >
-                  <span>📦 Campos por Tipo de Conteúdo</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                    {Object.values(contentFields).reduce((acc, f) => acc + (f?.length ?? 0), 0)}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveBuilderTab('character')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
-                    activeBuilderTab === 'character'
-                      ? 'bg-vtt-dark-green/40 text-vtt-light-green border border-vtt-green/40'
-                      : 'text-neutral-400 hover:text-vtt-light bg-vtt-dark-gray/30'
-                  }`}
-                >
-                  <span>📑 Ficha de Personagem</span>
-                  <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                    {groups.length}
-                  </span>
-                </button>
+          {/* SESSÃO 1: INFORMAÇÕES GERAIS */}
+          <section className="flex flex-col gap-5 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
+            <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
+              <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
+                <IconInfo />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Informações Gerais</h3>
               </div>
-
-              {activeBuilderTab === 'content' && (
-                <button
-                  type="button"
-                  onClick={loadAllPresets}
-                  className="flex items-center gap-1.5 text-xs text-vtt-light-green hover:underline cursor-pointer"
-                  title="Preencher todos os tipos de conteúdo com modelos padrão de D&D"
-                >
-                  ✨ Carregar Todos os Padrões D&D
-                </button>
-              )}
             </div>
 
-            {/* TAB: CONTENT FIELDS BY TYPE */}
-            {activeBuilderTab === 'content' && (
-              <div className="flex flex-col gap-4">
-                {/* Horizontal Content Types Selector */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin">
-                  {CONTENT_TYPE_LIST.map(ct => {
-                    const count = (contentFields[ct.value] ?? []).length
-                    const isSelected = selectedContentType === ct.value
-                    return (
-                      <button
-                        key={ct.value}
-                        type="button"
-                        onClick={() => setSelectedContentType(ct.value)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors cursor-pointer border ${
-                          isSelected
-                            ? 'bg-vtt-green text-white border-vtt-green shadow-xs'
-                            : 'bg-vtt-dark-gray/40 border-vtt-dark-gray text-neutral-400 hover:text-vtt-light hover:bg-vtt-dark-gray'
-                        }`}
-                      >
-                        <span>{ct.emoji}</span>
-                        <span>{ct.label}</span>
-                        {count > 0 && (
-                          <span
-                            className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                              isSelected ? 'bg-black/30 text-white' : 'bg-vtt-dark text-neutral-400'
-                            }`}
-                          >
-                            {count}
-                          </span>
-                        )}
-                      </button>
-                    )
-                  })}
+            <div className="flex gap-4">
+              <label className="flex-[2] flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                  placeholder="ex: D&D 5e"
+                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+              </label>
+              <label className="flex-1 flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
+                <input type="text" value={version} onChange={e => setVersion(e.target.value)}
+                  placeholder="ex: 5.1"
+                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+              </label>
+            </div>
+
+            <div className="flex gap-4">
+              <label className="flex-1 flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
+                <select value={genre} onChange={e => setGenre(e.target.value)}
+                  className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
+                             text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
+                  <option value="">Selecionar...</option>
+                  {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </label>
+              <label className="flex-[2] flex flex-col gap-1.5">
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
+                <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+                  placeholder="Breve descrição do sistema..."
+                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+              </label>
+            </div>
+          </section>
+
+          {/* SESSÃO 2: ESTRUTURA DO SISTEMA (ABAS) */}
+          <section className="flex flex-col gap-4 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
+
+            <div className="flex items-center gap-3 mb-2 border-b border-vtt-dark-gray pb-3">
+              <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
+                <IconLayers />
+              </span>
+              <div className="flex-1">
+                <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Estrutura de Atributos</h3>
+              </div>
+            </div>
+
+            {/* Builder section tabs */}
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                <div className="flex gap-2 bg-vtt-dark-gray/30 p-1 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setActiveBuilderTab('content')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'content'
+                      ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
+                      : 'text-neutral-500 hover:text-vtt-light'
+                      }`}
+                  >
+                    <IconBox />
+                    <span>Tipos de Conteúdo</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                      {Object.values(contentFields).reduce((acc, f) => acc + (f?.length ?? 0), 0)}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveBuilderTab('character')}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'character'
+                      ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
+                      : 'text-neutral-500 hover:text-vtt-light'
+                      }`}
+                  >
+                    <IconCharacter />
+                    <span>Ficha de Personagem</span>
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                      {groups.length}
+                    </span>
+                  </button>
                 </div>
+              </div>
 
-                {/* Selected Type Card */}
-                {(() => {
-                  const meta = CONTENT_TYPE_LIST.find(c => c.value === selectedContentType)!
-                  const currentFields = contentFields[selectedContentType] ?? []
-                  return (
-                    <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden flex flex-col gap-3 p-4">
-                      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-vtt-dark-gray/60">
-                        <div>
-                          <h4 className="text-sm font-bold text-vtt-light flex items-center gap-2">
-                            <span>{meta.emoji}</span>
-                            <span>Campos Fixos de {meta.label}</span>
-                          </h4>
-                          <p className="text-xs text-neutral-400 mt-0.5">
-                            {meta.description}. Estes campos aparecerão automaticamente ao cadastrar um(a) {meta.singularLabel.toLowerCase()}.
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => loadDefaultPreset(selectedContentType)}
-                            className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green hover:bg-vtt-dark-green/60 transition-colors cursor-pointer"
-                          >
-                            ✨ Carregar Padrão D&D
-                          </button>
-                          {currentFields.length > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => clearContentFields(selectedContentType)}
-                              className="text-xs text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer px-2 py-1"
+              {/* TAB: CONTENT FIELDS BY TYPE */}
+              {activeBuilderTab === 'content' && (
+                <div className="flex flex-col gap-4 mt-2">
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
+                    {CONTENT_TYPE_LIST.map(ct => {
+                      const count = (contentFields[ct.value] ?? []).length
+                      const isSelected = selectedContentType === ct.value
+                      return (
+                        <button
+                          key={ct.value}
+                          type="button"
+                          onClick={() => setSelectedContentType(ct.value)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 cursor-pointer border ${isSelected
+                            ? 'bg-vtt-golden/10 text-vtt-golden border-vtt-golden/30 shadow-sm'
+                            : 'bg-vtt-dark-gray/40 border-transparent text-neutral-400 hover:text-vtt-golden hover:bg-vtt-dark-gray'
+                            }`}
+                        >
+                          {/* O texto e ícone (se houver no futuro) do tipo de conteúdo */}
+                          <span>{ct.label}</span>
+
+                          {count > 0 && (
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${isSelected ? 'bg-vtt-golden/20 text-vtt-golden' : 'bg-vtt-dark text-neutral-400'
+                                }`}
                             >
-                              Limpar
-                            </button>
+                              {count}
+                            </span>
                           )}
-                        </div>
-                      </div>
+                        </button>
+                      )
+                    })}
+                  </div>
 
-                      {/* Field list for this type */}
-                      <div className="flex flex-col gap-2">
-                        {currentFields.length === 0 && (
-                          <div className="text-center py-6 text-neutral-500 text-xs border border-dashed border-vtt-dark-gray rounded-lg flex flex-col items-center gap-2">
-                            <p>Nenhum campo fixo definido para {meta.label} ainda.</p>
+                  {/* Selected Type Card */}
+                  {(() => {
+                    const meta = CONTENT_TYPE_LIST.find(c => c.value === selectedContentType)!
+                    const currentFields = contentFields[selectedContentType] ?? []
+                    return (
+                      <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden flex flex-col gap-3 p-4">
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-vtt-dark-gray/60">
+                          <div>
+                            <h4 className="text-sm font-bold text-vtt-golden flex items-center gap-2">
+                              <IconBox />
+                              <span>{meta.label}</span>
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
                               onClick={() => loadDefaultPreset(selectedContentType)}
-                              className="text-xs text-vtt-light-green underline cursor-pointer"
+                              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-vtt-dark-gray hover:bg-neutral-700 transition-colors cursor-pointer text-vtt-golden"
                             >
-                              Clique aqui para carregar os campos padrão de D&D
+                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /></svg>
+                              Padrão D&D
                             </button>
+                            {currentFields.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => clearContentFields(selectedContentType)}
+                                className="text-xs text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer px-2 py-1"
+                              >
+                                Limpar
+                              </button>
+                            )}
                           </div>
-                        )}
-                        {currentFields.map((f, i) => (
-                          <FieldRow
-                            key={f.key ? `${f.key}-${i}` : String(i)}
-                            field={f}
-                            index={i}
-                            onUpdate={nf => updateContentField(i, nf)}
-                            onRemove={() => removeContentField(i)}
-                            onDragStart={handleContentFieldDragStart}
-                            onDragOver={handleContentFieldDragOver}
-                            onDragLeave={handleContentFieldDragLeave}
-                            onDrop={handleContentFieldDrop}
-                            onDragEnd={handleContentFieldDragEnd}
-                            isDragging={draggedContentField === i}
-                            isOver={overContentField === i}
-                          />
-                        ))}
+                        </div>
 
-                        <button
-                          type="button"
-                          onClick={addContentField}
-                          className="mt-1 flex items-center gap-1.5 text-xs text-vtt-green hover:text-vtt-light-green
-                                     transition-colors font-medium cursor-pointer w-fit"
-                        >
-                          <IconPlus /> Adicionar campo em {meta.singularLabel}
-                        </button>
+                        {/* Field list for this type */}
+                        <div className="flex flex-col gap-2">
+                          {currentFields.length === 0 && (
+                            <div className="text-center py-6 text-neutral-500 text-xs border border-dashed border-vtt-dark-gray rounded-lg flex flex-col items-center gap-2">
+                              <p>Nenhum campo fixo definido.</p>
+                              <button
+                                type="button"
+                                onClick={() => loadDefaultPreset(selectedContentType)}
+                                className="text-xs text-vtt-golden/80 hover:text-vtt-golden underline cursor-pointer"
+                              >
+                                Carregar campos padrão
+                              </button>
+                            </div>
+                          )}
+                          {currentFields.map((f, i) => (
+                            <FieldRow
+                              key={f.key ? `${f.key}-${i}` : String(i)}
+                              field={f}
+                              index={i}
+                              onUpdate={nf => updateContentField(i, nf)}
+                              onRemove={() => removeContentField(i)}
+                              onDragStart={handleContentFieldDragStart}
+                              onDragOver={handleContentFieldDragOver}
+                              onDragLeave={handleContentFieldDragLeave}
+                              onDrop={handleContentFieldDrop}
+                              onDragEnd={handleContentFieldDragEnd}
+                              isDragging={draggedContentField === i}
+                              isOver={overContentField === i}
+                            />
+                          ))}
+
+                          <button
+                            type="button"
+                            onClick={addContentField}
+                            className="mt-1 flex items-center gap-1.5 text-xs text-vtt-light hover:text-vtt-golden
+                                       transition-colors font-medium cursor-pointer w-fit"
+                          >
+                            <IconPlus /> Adicionar
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )
-                })()}
-              </div>
-            )}
+                    )
+                  })()}
+                </div>
+              )}
 
-            {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
-            {activeBuilderTab === 'character' && (
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-bold text-vtt-light uppercase tracking-widest">Grupos de Atributos da Ficha</h3>
-                    <p className="text-xs text-neutral-400 mt-0.5">Atributos principais do personagem (ex: Força, Destreza, Constituição).</p>
+              {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
+              {activeBuilderTab === 'character' && (
+                <div className="flex flex-col gap-4 mt-2">
+                  <div className="flex items-center justify-between">
+                    <button type="button" onClick={addGroup}
+                      className="flex items-center gap-1.5 text-xs font-semibold text-vtt-golden hover:text-[#FBE8A6]
+                                 transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-golden/30
+                                 hover:border-vtt-golden bg-vtt-golden/10 hover:bg-vtt-golden/20 ml-auto">
+                      <IconPlus /> Novo Grupo
+                    </button>
                   </div>
-                  <button type="button" onClick={addGroup}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-vtt-green hover:text-vtt-light-green
-                               transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-green/40
-                               hover:border-vtt-green bg-vtt-dark-green/20 hover:bg-vtt-dark-green/40">
-                    <IconPlus /> Novo Grupo
-                  </button>
+
+                  {groups.length === 0 && (
+                    <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
+                      Nenhum grupo definido.
+                    </div>
+                  )}
+
+                  {groups.map((g, i) => (
+                    <GroupCard
+                      key={g.id || String(i)}
+                      group={g}
+                      index={i}
+                      onUpdate={ng => updateGroup(i, ng)}
+                      onRemove={() => removeGroup(i)}
+                      onDragStartGroup={handleGroupDragStart}
+                      onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
+                      onDragLeaveGroup={handleGroupDragLeave}
+                      onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
+                      onDragEndGroup={handleGroupDragEnd}
+                      isDraggingGroup={draggedGroupIndex === i}
+                      isOverGroup={overGroupIndex === i}
+                      onFieldDragStart={handleFieldDragStart}
+                      onFieldDragOver={handleFieldDragOver}
+                      onFieldDragLeave={handleFieldDragLeave}
+                      onFieldDrop={handleFieldDrop}
+                      onFieldDragEnd={handleFieldDragEnd}
+                      draggedFieldInfo={draggedGroupField}
+                      overFieldInfo={overGroupField}
+                      onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+          {/* SESSÃO 3: ZONA DE PERIGO (Só aparece ao editar um sistema existente) */}
+          {initial && (
+            <section className="flex flex-col gap-4 bg-red-950/10 p-6 rounded-xl border border-vtt-red/30 shadow-inner mt-4">
+
+              <div className="flex items-center gap-3 border-b border-vtt-red/20 pb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-red/20 text-vtt-red">
+                  <IconAlert />
+                </span>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-vtt-red uppercase tracking-widest flex items-center gap-2">
+                    Zona de Perigo
+                  </h3>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div>
+                  <h4 className="text-vtt-light text-sm font-semibold">Excluir este sistema</h4>
+                  {/* <p className="text-neutral-500 text-xs mt-1 max-w-md">
+                    Tem certeza? Essa ação é irreversível.
+                  </p> */}
                 </div>
 
-                {groups.length === 0 && (
-                  <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
-                    Nenhum grupo ainda. Clique em "Novo Grupo" para começar a definir os atributos da ficha.
-                  </div>
-                )}
-
-                {groups.map((g, i) => (
-                  <GroupCard
-                    key={g.id || String(i)}
-                    group={g}
-                    index={i}
-                    onUpdate={ng => updateGroup(i, ng)}
-                    onRemove={() => removeGroup(i)}
-                    onDragStartGroup={handleGroupDragStart}
-                    onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
-                    onDragLeaveGroup={handleGroupDragLeave}
-                    onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
-                    onDragEndGroup={handleGroupDragEnd}
-                    isDraggingGroup={draggedGroupIndex === i}
-                    isOverGroup={overGroupIndex === i}
-                    onFieldDragStart={handleFieldDragStart}
-                    onFieldDragOver={handleFieldDragOver}
-                    onFieldDragLeave={handleFieldDragLeave}
-                    onFieldDrop={handleFieldDrop}
-                    onFieldDragEnd={handleFieldDragEnd}
-                    draggedFieldInfo={draggedGroupField}
-                    overFieldInfo={overGroupField}
-                    onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
-                  />
-                ))}
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={async () => {
+                    // Lógica de confirmação inline (3 segundos para confirmar)
+                    if (!confirmDelete) {
+                      setConfirmDelete(true)
+                      setTimeout(() => setConfirmDelete(false), 3000)
+                      return
+                    }
+                    // Ação real de deletar
+                    setLoading(true)
+                    const res = await window.api.systems.delete(initial.id)
+                    if (!res.success) {
+                      setError(res.error ?? 'Erro ao excluir.')
+                      setLoading(false)
+                      return
+                    }
+                    onSaved() // Fecha o modal e atualiza a lista de trás
+                  }}
+                  className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 cursor-pointer whitespace-nowrap ${confirmDelete
+                    ? 'bg-vtt-red text-white shadow-[0_0_16px_rgba(211,47,47,0.5)] scale-105'
+                    : 'bg-transparent border border-vtt-red/50 text-vtt-red hover:bg-vtt-red hover:text-white'
+                    }`}
+                >
+                  {confirmDelete ? 'Tem certeza?!?' : 'Apagar Sistema'}
+                </button>
               </div>
-            )}
-          </div>
+            </section>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 px-8 py-5 border-t border-vtt-dark-gray shrink-0">
+        {/* Footer com Botões */}
+        <div className="flex gap-3 px-8 py-5 border-t border-vtt-dark-gray shrink-0 bg-vtt-dark sticky bottom-0 z-10 rounded-b-2xl">
           <button type="button" onClick={onClose}
-            className="flex-1 py-2.5 rounded-lg border border-vtt-light-gray text-neutral-300 text-sm
+            className="flex-1 py-2.5 rounded-xl border border-vtt-light-gray text-neutral-300 text-sm
                        font-semibold hover:border-vtt-red hover:text-vtt-light transition-colors cursor-pointer">
             Cancelar
           </button>
           <button type="submit" disabled={loading}
-            className="flex-1 py-2.5 rounded-lg bg-vtt-green text-white text-sm font-semibold
-                       hover:bg-vtt-light-green transition-colors disabled:opacity-50 cursor-pointer">
+            className="flex-1 py-2.5 rounded-xl bg-vtt-green text-white text-sm font-semibold
+                       hover:bg-vtt-light-green transition-colors disabled:opacity-50 cursor-pointer shadow-lg shadow-vtt-green/20">
             {loading ? 'Salvando...' : initial ? 'Salvar Alterações' : 'Criar Sistema'}
           </button>
         </div>
@@ -980,78 +1271,69 @@ function DeleteModal({ system, onClose, onDeleted }: { system: RpgSystemFull; on
   )
 }
 
-/* ─── System Card ────────────────────────────────────────────── */
+/* ??? System Card ????????????????????????????????? */
 function SystemCard({ system, onEdit, onDelete, onView }: {
   system: RpgSystemFull
   onEdit: () => void
   onDelete: () => void
   onView: () => void
 }): React.JSX.Element {
-  const groups = system.structure?.attributeGroups ?? []
-  const attrCount = groups.reduce((s, g) => s + (g.fields?.length ?? 0), 0)
-  const groupCount = groups.length
 
   return (
-    <article className="group relative border border-vtt-dark-gray bg-vtt-dark rounded-xl p-5
-                        hover:border-vtt-green transition-all duration-300
-                        hover:shadow-[0_0_24px_rgba(46,111,64,0.2)] flex flex-col gap-4 select-none">
-      {/* Top */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex flex-col gap-1 flex-1 min-w-0">
-          <h3 className="text-vtt-light font-bold text-base leading-tight group-hover:text-white transition-colors truncate">{system.name}</h3>
-          <div className="flex items-center gap-2 flex-wrap">
-            {system.version && <span className="text-[10px] text-neutral-500 font-mono">v{system.version}</span>}
-            {system.genre && (
-              <span className="text-[10px] font-semibold uppercase tracking-widest px-2 py-0.5 rounded-full
-                               bg-vtt-dark-green/40 text-vtt-light-green border border-vtt-green/30">
-                {system.genre}
-              </span>
-            )}
+    <article className="group relative bg-vtt-dark rounded-xl flex flex-col select-none
+                        border border-vtt-dark-gray hover:border-vtt-red/60 
+                        transition-all duration-300 shadow-md hover:shadow-[0_4px_24px_rgba(211,47,47,0.15)]
+                        hover:-translate-y-1 hover:scale-[1.02]
+                        overflow-hidden">
+
+      <div className="absolute -right-4 -bottom-4 w-28 h-28 text-[#262626] transition-all duration-300 ease-in-out group-hover:text-vtt-golden group-hover:drop-shadow-[0_0_8px_rgba(233,209,128,0.3)] pointer-events-none" />
+
+      <SystemBanner genre={system.genre} />
+
+      {/* Corpo de Informacoes */}
+      <div className="p-5 flex flex-col gap-4 flex-1">
+
+        {/* Topo: Nome e Versao */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex items-center gap-2 w-full">
+              <h3 className="text-vtt-golden group-hover:text-[#FBE8A6] font-bold text-lg leading-tight truncate drop-shadow-sm transition-colors duration-300">
+                {system.name}
+              </h3>
+
+              {system.version && (
+                <span className="shrink-0 text-[10px] text-vtt-light/70 font-mono bg-vtt-dark-gray/40 px-1.5 py-0.5 rounded border border-vtt-light/5 mt-0.5">
+                  v{system.version}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-        <div className="text-vtt-dark-gray group-hover:text-vtt-green transition-colors shrink-0">
-          <IconDice />
+
+
+        {/* Botoes de Acao (Proporcao 2/3 e 1/3) */}
+        <div className="flex gap-2 pt-1 border-t border-vtt-dark-gray/50 mt-auto">
+          <button type="button" onClick={onEdit}
+            className="w-1/3 flex items-center justify-center gap-1 py-2 px-3 rounded-lg
+                        bg-transparent hover:bg-vtt-dark-gray/50 border border-transparent hover:border-vtt-light-gray
+                        text-vtt-light-gray hover:text-vtt-golden transition-all duration-200 cursor-pointer group/edit"
+            title="Editar">
+            <div className="transform group-hover/edit:rotate-45 transition-all duration-300 shrink-0 flex items-center justify-center">
+              <IconGears />
+            </div>
+          </button>
+          <button type="button" onClick={onView}
+            className="w-2/3 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg
+                       bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green text-xs font-semibold 
+                       hover:bg-vtt-green hover:text-vtt-light transition-all duration-200 cursor-pointer">
+            <IconScroll /> Conteudo
+          </button>
         </div>
-      </div>
-
-      {system.description && (
-        <p className="text-neutral-500 text-xs leading-relaxed line-clamp-2">{system.description}</p>
-      )}
-
-      {/* Stats */}
-      <div className="flex gap-3 text-xs text-neutral-500">
-        <span>{groupCount} grupo{groupCount !== 1 ? 's' : ''}</span>
-        <span>•</span>
-        <span>{attrCount} atributo{attrCount !== 1 ? 's' : ''}</span>
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-2 mt-auto">
-        <button type="button" onClick={onView}
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg
-                     bg-vtt-green text-white text-xs font-semibold hover:bg-vtt-light-green
-                     transition-all duration-200 cursor-pointer">
-          <IconScroll /> Conteúdo
-        </button>
-        <button type="button" onClick={onEdit}
-          className="flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg
-                     border border-vtt-dark-gray bg-vtt-dark-gray/60 hover:bg-vtt-dark-gray
-                     text-neutral-300 hover:text-white text-xs font-medium transition-all duration-200 cursor-pointer">
-          <IconEdit />
-        </button>
-        <button type="button" onClick={onDelete}
-          className="flex items-center justify-center gap-1 py-1.5 px-3 rounded-lg
-                     border border-vtt-dark-gray bg-vtt-dark-gray/60 hover:bg-red-950/40
-                     text-neutral-400 hover:text-vtt-red hover:border-red-600/50 text-xs
-                     font-medium transition-all duration-200 cursor-pointer">
-          <IconTrash />
-        </button>
       </div>
     </article>
   )
 }
 
-/* ─── Page ───────────────────────────────────────────────────── */
 export default function SystemsPage(): React.JSX.Element {
   const { user } = useAuth()
   const { fetchSystems } = useCampaigns()
@@ -1059,8 +1341,11 @@ export default function SystemsPage(): React.JSX.Element {
   const [systems, setSystems] = useState<RpgSystemFull[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [editing, setEditing] = useState<RpgSystemFull | undefined>(undefined)
   const [deleting, setDeleting] = useState<RpgSystemFull | undefined>(undefined)
+
+  const [search, setSearch] = useState('')
 
   const load = useCallback(async (): Promise<void> => {
     setLoading(true)
@@ -1078,6 +1363,11 @@ export default function SystemsPage(): React.JSX.Element {
   const onSaved = (): void => { closeForm(); load() }
   const onDeleted = (): void => { setDeleting(undefined); load() }
 
+  // L�GICA DO FILTRO: Cria a lista filtrada baseada no estado 'search'
+  const filteredSystems = systems.filter((system) =>
+    system.name.toLowerCase().includes(search.toLowerCase())
+  )
+
   return (
     <div className="flex flex-row h-screen overflow-hidden">
       <Sidebar />
@@ -1086,20 +1376,47 @@ export default function SystemsPage(): React.JSX.Element {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <button type="button" onClick={() => navigate('/home')}
+            {/* <button type="button" onClick={() => navigate('/home')}
               className="flex items-center gap-1.5 text-neutral-400 hover:text-vtt-light text-sm transition-colors mb-4">
               <IconArrowLeft /> Voltar
-            </button>
-            <h1 className="text-3xl font-bold text-vtt-light">Sistemas RPG</h1>
-            <p className="text-neutral-400 text-sm mt-1">Gerencie os sistemas de regras e seus atributos.</p>
+            </button> */}
+            <h1 className="text-3xl font-bold text-vtt-golden">Sistemas RPG</h1>
+            {/* <p className="text-neutral-400 text-sm mt-1">Gerencie os sistemas de regras e seus atributos.</p> */}
           </div>
-          <button type="button" onClick={openCreate}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-vtt-green text-white
-                       font-semibold text-sm hover:bg-vtt-light-green transition-colors cursor-pointer
-                       shadow-[0_0_16px_rgba(46,111,64,0.3)] hover:shadow-[0_0_24px_rgba(67,161,93,0.4)]">
-            <IconPlus /> Novo Sistema
-          </button>
         </div>
+
+        {/* BARRA DE BUSCA E BOTÕES DE AÇÃO */}
+        <div className="flex items-center justify-between mb-2">
+          <FilterContent search={search} setSearch={setSearch} />
+
+          {/* Wrapper para deixar os botões lado a lado */}
+          <div className="flex items-center gap-3">
+
+            {/* Botão de Importar Sistema (Golden) */}
+            <button
+              type="button"
+              onClick={() => setShowImport(true)}
+              className="flex items-center justify-center p-2.5 rounded-xl
+                         bg-vtt-dark border border-vtt-dark-gray text-vtt-light-gray 
+                         hover:bg-vtt-dark-gray/50 hover:text-vtt-golden hover:border-vtt-golden/50 
+                         transition-all duration-200 cursor-pointer shadow-md"
+              title="Importar Sistema"
+            >
+              <IconFileImport />
+            </button>
+
+            <button type="button" onClick={openCreate}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl
+                         bg-vtt-dark-green/30 border border-vtt-green/40 text-vtt-light-green text-sm font-semibold 
+                         hover:bg-vtt-green hover:text-vtt-light transition-all duration-200 cursor-pointer
+                         hover:shadow-[0_0_24px_rgba(67,161,93,0.4)]">
+              <IconPlus /> Novo Sistema
+            </button>
+
+          </div>
+        </div>
+
+        <div className="w-full h-px bg-vtt-red mb-8" />
 
         {/* Content */}
         {loading ? (
@@ -1117,7 +1434,8 @@ export default function SystemsPage(): React.JSX.Element {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {systems.map(s => (
+            {/* 4. USE 'filteredSystems' NO LUGAR DE 'systems' NO MAP() */}
+            {filteredSystems.map(s => (
               <SystemCard
                 key={s.id}
                 system={s}
@@ -1126,6 +1444,14 @@ export default function SystemsPage(): React.JSX.Element {
                 onView={() => navigate(`/systems/${s.id}/content`)}
               />
             ))}
+
+            {/* 5. FEEDBACK OPCIONAL SE N�O ACHAR NADA */}
+            {filteredSystems.length === 0 && search !== '' && (
+              <div className="col-span-full mt-8 flex justify-center w-full">
+                <p className="text-neutral-400">Nenhum sistema encontrado com "{search}".</p>
+              </div>
+            )}
+
           </div>
         )}
       </main>
@@ -1145,6 +1471,10 @@ export default function SystemsPage(): React.JSX.Element {
           onClose={() => setDeleting(undefined)}
           onDeleted={onDeleted}
         />
+      )}
+
+      {showImport && (
+        <ImportModal onClose={() => setShowImport(false)} />
       )}
     </div>
   )

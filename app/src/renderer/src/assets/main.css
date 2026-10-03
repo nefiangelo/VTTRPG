@@ -11,6 +11,23 @@
   --color-vtt-light-green: #43A15D;
   --color-vtt-green: #2E6F40;
   --color-vtt-dark-green: #1D4829;
+  --color-vtt-golden: #E9D180;
+}
+
+@font-face {
+  font-family: 'Cinzel';
+  src: url('./fonts/cinzel/Cinzel-VariableFont_wght.ttf') format('truetype');
+  font-weight: 400 900;
+  font-style: normal;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Cinzel';
 }
 
 html,

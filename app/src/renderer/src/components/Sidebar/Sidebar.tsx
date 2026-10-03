@@ -47,11 +47,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Campanhas',    icon: <IconBook />,   route: '/home' },
+  { label: 'Campanhas', icon: <IconBook />, route: '/home' },
   { label: 'Acessar Sessão', icon: <IconLogin />, route: '/join-campaign' },
   { label: 'Sistemas RPG', icon: <IconWrench />, route: '/systems' },
-  { label: 'Homebrew',    icon: <IconBook />,   route: '/homebrew' },
-  { label: 'Amigos',      icon: <IconPeople />, route: '/friends' },
+  { label: 'Homebrew', icon: <IconBook />, route: '/homebrew' },
+  { label: 'Amigos', icon: <IconPeople />, route: '/friends' },
 ]
 
 const NAV_ITEMS_BOTTOM: NavItem[] = [
@@ -73,14 +73,17 @@ export default function Sidebar(): React.JSX.Element {
 
   return (
     <aside
-      className={`${expanded ? 'w-72' : 'w-20'
-        } min-h-screen bg-vtt-dark transition-[width] duration-300 ease-in-out shrink-0 select-none`}
+      className={`${expanded ? 'w-72' : 'w-20'} 
+        min-h-screen shrink-0 select-none relative z-50
+        transition-[width] duration-300 ease-in-out 
+        bg-vtt-dark/70 backdrop-blur-md 
+        shadow-[12px_0_30px_-4px_rgba(0,0,0,0.8)]`}
     >
       <section className='h-full flex flex-col justify-between py-8 px-3 transition-all duration-300'>
         {/* TOP: HEADER (TITLE + MINIMIZE/EXPAND BUTTON) */}
         <div className={`flex items-center ${expanded ? 'justify-between px-3' : 'justify-center'} w-full min-h-10`}>
           {expanded && (
-            <span className='text-xl font-bold whitespace-nowrap text-vtt-light tracking-wide'>
+            <span className='text-xl font-bold whitespace-nowrap text-vtt-golden tracking-wide'>
               Loot & Dice
             </span>
           )}
@@ -102,9 +105,10 @@ export default function Sidebar(): React.JSX.Element {
               <div
                 key={index}
                 onClick={() => navigate(item.route)}
-                className={`flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors ${isActive
-                  ? 'bg-vtt-dark-gray text-vtt-light'
-                  : 'hover:bg-vtt-dark-gray text-neutral-300 hover:text-vtt-light'
+                // Aplicada a borda em Y (em cima e em baixo) e trocado a cor ativa para borda dark-red
+                className={`flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors border-y-2 border-x-0 ${isActive
+                  ? 'bg-vtt-dark-gray/50 border-vtt-golden text-vtt-golden'
+                  : 'border-transparent text-neutral-300 hover:bg-vtt-dark-gray/60 hover:text-vtt-light'
                   }`}
                 title={!expanded ? item.label : undefined}
               >
@@ -119,9 +123,9 @@ export default function Sidebar(): React.JSX.Element {
         <div className='flex flex-col gap-1.5'>
           <div
             onClick={() => navigate(NAV_ITEMS_BOTTOM[0].route)}
-            className={`flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors ${location.pathname === NAV_ITEMS_BOTTOM[0].route
-              ? 'bg-vtt-dark-gray text-vtt-light'
-              : 'hover:bg-vtt-dark-gray text-neutral-300 hover:text-vtt-light'
+            className={`flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors border-y-2 border-x-0 ${location.pathname === NAV_ITEMS_BOTTOM[0].route
+              ? 'bg-vtt-dark-gray/50 border-vtt-dark-red text-vtt-golden'
+              : 'border-transparent text-neutral-300 hover:bg-vtt-dark-gray/60 hover:text-vtt-light'
               }`}
             title={!expanded ? NAV_ITEMS_BOTTOM[0].label : undefined}
           >
@@ -131,7 +135,7 @@ export default function Sidebar(): React.JSX.Element {
 
           <div
             onClick={handleLogout}
-            className='flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer hover:bg-vtt-red transition-colors text-neutral-300 hover:text-vtt-light'
+            className='flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors border-y-2 border-transparent text-neutral-300 hover:bg-vtt-red/20 hover:text-vtt-red'
             title={!expanded ? NAV_ITEMS_BOTTOM[1].label : undefined}
           >
             {NAV_ITEMS_BOTTOM[1].icon}
