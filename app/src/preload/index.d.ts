@@ -106,6 +106,17 @@ export interface UpdateSessionPayload {
   status?: 'scheduled' | 'active' | 'completed'
 }
 
+export interface PersistentParticipant {
+  id: number
+  session_id: number
+  campaign_id: number
+  user_id: number
+  username: string
+  role: 'gm' | 'player' | 'observer'
+  first_joined: string
+  last_joined: string
+}
+
 /* -- RPG Systems Full ---------------------------------------- */
 export interface AttributeField {
   key: string
@@ -261,6 +272,9 @@ export interface SessionBundleResult {
   }
   system: RpgSystemFull | null
   content: SystemContentEntry[]
+  characters?: CharacterEntry[]
+  nodes?: CampaignNode[]
+  persistentParticipants?: PersistentParticipant[]
   stats: {
     totalContentItems: number
     attributeGroupsCount: number
@@ -395,6 +409,8 @@ interface API {
     delete: (id: number) => Promise<{ success: boolean; error?: string }>
     importBundle: (payload: ImportBundlePayload) => Promise<ImportBundleResult>
     applySyncUpdate: (payload: ApplySyncPayload, userId?: number) => Promise<ApplySyncResult>
+    getParticipants: (sessionId?: number, campaignId?: number) => Promise<PersistentParticipant[]>
+    recordParticipant: (payload: { sessionId: number; campaignId: number; username: string; role?: 'gm' | 'player' | 'observer' }) => Promise<PersistentParticipant>
   }
   characters: {
     getByCampaign: (campaignId: number, userId?: number) => Promise<CharacterEntry[]>
@@ -421,6 +437,59 @@ interface API {
     getStatus: () => Promise<SessionServerStatus>
     getLocalIps: () => Promise<string[]>
   }
+  campaignNodes: {
+    getByCampaign: (campaignId: number, isGM?: boolean, username?: string) => Promise<CampaignNode[]>
+    create: (payload: CreateCampaignNodePayload) => Promise<{ success: boolean; node?: CampaignNode; error?: string }>
+    update: (payload: UpdateCampaignNodePayload, campaignId?: number) => Promise<{ success: boolean; node?: CampaignNode; error?: string }>
+    delete: (id: string, campaignId?: number) => Promise<{ success: boolean; error?: string }>
+  }
+}
+
+/* -- Campaign Nodes (Arquivos e Pastas da Biblioteca da Campanha) -- */
+export type CampaignNodeType = 'folder' | 'character' | 'note' | 'image' | 'audio' | 'map'
+export type NodeVisibility = 'gm_only' | 'all' | 'custom'
+export type NodePermission = 'view' | 'edit'
+
+export interface CampaignNode {
+  id: string
+  campaign_id: number
+  parent_id: string | null
+  type: CampaignNodeType
+  name: string
+  description?: string | null
+  visibility: NodeVisibility
+  permission: NodePermission
+  shared_with: string[]
+  data: Record<string, any>
+  order_index: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateCampaignNodePayload {
+  id?: string
+  campaign_id: number
+  parent_id?: string | null
+  type: CampaignNodeType
+  name: string
+  description?: string
+  visibility?: NodeVisibility
+  permission?: NodePermission
+  shared_with?: string[]
+  data?: Record<string, any>
+  order_index?: number
+}
+
+export interface UpdateCampaignNodePayload {
+  id: string
+  name?: string
+  description?: string | null
+  parent_id?: string | null
+  visibility?: NodeVisibility
+  permission?: NodePermission
+  shared_with?: string[]
+  data?: Record<string, any>
+  order_index?: number
 }
 
 declare global {
