@@ -11,6 +11,7 @@ import GameSessionPage  from './pages/GameSessionPage'
 import CampaignSessionsPage from './pages/CampaignSessionsPage'
 import SystemsPage      from './pages/SystemsPage'
 import SystemContentPage from './pages/SystemContentPage'
+import ProfilePage      from './pages/ProfilePage'
 
 // Redirect logged-in users away from auth pages
 function PublicRoute({ children }: { children: React.ReactNode }): React.JSX.Element {
@@ -44,6 +45,7 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/sessions/:id"  element={<PrivateRoute><GameSessionPage /></PrivateRoute>} />
       <Route path="/systems"       element={<PrivateRoute><SystemsPage /></PrivateRoute>} />
       <Route path="/systems/:id/content" element={<PrivateRoute><SystemContentPage /></PrivateRoute>} />
+      <Route path="/profile"       element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
 
       {/* Default */}
       <Route path="*" element={<Navigate to="/login" replace />} />

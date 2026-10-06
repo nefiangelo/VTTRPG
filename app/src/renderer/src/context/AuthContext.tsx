@@ -15,6 +15,12 @@ interface AuthContextValue {
   login: (username: string, password: string) => Promise<string | null>
   register: (username: string, password: string, email?: string) => Promise<string | null>
   logout: () => void
+  updateProfile: (data: {
+    currentPassword: string
+    username?: string
+    email?: string | null
+    newPassword?: string
+  }) => Promise<string | null>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -59,8 +65,25 @@ export function AuthProvider({ children }: { children: ReactNode }): React.JSX.E
     localStorage.removeItem(SESSION_KEY)
   }, [])
 
+  const updateProfile = useCallback(
+    async (data: {
+      currentPassword: string
+      username?: string
+      email?: string | null
+      newPassword?: string
+    }): Promise<string | null> => {
+      if (!user) return 'Not authenticated.'
+      const result = await window.api.auth.updateProfile({ userId: user.id, ...data })
+      if (!result.success || !result.user) return result.error ?? 'Update failed.'
+      setUser(result.user)
+      localStorage.setItem(SESSION_KEY, JSON.stringify(result.user))
+      return null
+    },
+    [user]
+  )
+
   return (
-    <AuthContext.Provider value={{ user, isLoading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, login, register, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   )
