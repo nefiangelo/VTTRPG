@@ -124,7 +124,7 @@ export default function Sidebar(): React.JSX.Element {
           <div
             onClick={() => navigate(NAV_ITEMS_BOTTOM[0].route)}
             className={`flex items-center gap-3.5 px-4 py-2.5 rounded-md cursor-pointer transition-colors border-y-2 border-x-0 ${location.pathname === NAV_ITEMS_BOTTOM[0].route
-              ? 'bg-vtt-dark-gray/50 border-vtt-dark-red text-vtt-golden'
+              ? 'bg-vtt-dark-gray/50 border-vtt-golden text-vtt-golden'
               : 'border-transparent text-neutral-300 hover:bg-vtt-dark-gray/60 hover:text-vtt-light'
               }`}
             title={!expanded ? NAV_ITEMS_BOTTOM[0].label : undefined}

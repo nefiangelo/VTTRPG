@@ -67,3 +67,62 @@ export async function login(username: string, password: string): Promise<AuthRes
   const { password: _, ...user } = row
   return { success: true, user: user as AuthUser }
 }
+
+export interface UpdateProfilePayload {
+  userId: number
+  currentPassword: string
+  username?: string
+  email?: string | null
+  newPassword?: string
+}
+
+export async function updateProfile(payload: UpdateProfilePayload): Promise<AuthResult> {
+  const db = getDb()
+  const { userId, currentPassword, username, email, newPassword } = payload
+
+  if (!currentPassword) return { success: false, error: 'Current password is required.' }
+
+  const row = db.prepare('SELECT id, password FROM users WHERE id = ?').get(userId) as
+    | { id: number; password: string }
+    | undefined
+  if (!row) return { success: false, error: 'User not found.' }
+
+  const valid = await bcrypt.compare(currentPassword, row.password)
+  if (!valid) return { success: false, error: 'Current password is incorrect.' }
+
+  const newUsername = username?.trim()
+  if (newUsername !== undefined) {
+    if (newUsername.length < 3)
+      return { success: false, error: 'Username must be at least 3 characters.' }
+    const taken = db
+      .prepare('SELECT id FROM users WHERE username = ? AND id != ?')
+      .get(newUsername, userId)
+    if (taken) return { success: false, error: 'Username is already taken.' }
+  }
+
+  const newEmail = email === undefined ? undefined : email?.trim() || null
+  if (newEmail) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail))
+      return { success: false, error: 'Invalid email address.' }
+    const taken = db
+      .prepare('SELECT id FROM users WHERE email = ? AND id != ?')
+      .get(newEmail, userId)
+    if (taken) return { success: false, error: 'Email is already in use.' }
+  }
+
+  if (newPassword !== undefined && newPassword !== '' && newPassword.length < 6)
+    return { success: false, error: 'Password must be at least 6 characters.' }
+
+  if (newUsername !== undefined)
+    db.prepare('UPDATE users SET username = ? WHERE id = ?').run(newUsername, userId)
+  if (newEmail !== undefined) db.prepare('UPDATE users SET email = ? WHERE id = ?').run(newEmail, userId)
+  if (newPassword) {
+    const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS)
+    db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hash, userId)
+  }
+
+  const user = db
+    .prepare('SELECT id, username, email, created_at FROM users WHERE id = ?')
+    .get(userId) as AuthUser
+  return { success: true, user }
+}

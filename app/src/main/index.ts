@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { register, login } from './auth'
+import { register, login, updateProfile } from './auth'
 import { createCampaign, getCampaignsByUser, getRpgSystems, getCampaignById, getCampaignMembers, updateCampaign, deleteCampaign, UpdateCampaignPayload } from './campaign'
 import {
   getSessionsByCampaign,
@@ -94,6 +94,9 @@ app.whenReady().then(() => {
   )
   ipcMain.handle('auth:login', (_e, username: string, password: string) =>
     login(username, password)
+  )
+  ipcMain.handle('auth:updateProfile', (_e, payload: Parameters<typeof updateProfile>[0]) =>
+    updateProfile(payload)
   )
 
   // Campaigns

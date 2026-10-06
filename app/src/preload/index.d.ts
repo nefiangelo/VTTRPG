@@ -14,6 +14,14 @@ export interface AuthResult {
   error?: string
 }
 
+export interface UpdateProfilePayload {
+  userId: number
+  currentPassword: string
+  username?: string
+  email?: string | null
+  newPassword?: string
+}
+
 /* -- Campaigns ---------------------------------------------- */
 export interface Campaign {
   id: number
@@ -374,6 +382,7 @@ interface API {
   auth: {
     login: (username: string, password: string) => Promise<AuthResult>
     register: (username: string, password: string, email?: string) => Promise<AuthResult>
+    updateProfile: (payload: UpdateProfilePayload) => Promise<AuthResult>
   }
   campaigns: {
     create: (payload: CreateCampaignPayload) => Promise<CampaignResult>

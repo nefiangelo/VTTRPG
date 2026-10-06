@@ -6,7 +6,14 @@ const api = {
     login: (username: string, password: string) =>
       ipcRenderer.invoke('auth:login', username, password),
     register: (username: string, password: string, email?: string) =>
-      ipcRenderer.invoke('auth:register', username, password, email)
+      ipcRenderer.invoke('auth:register', username, password, email),
+    updateProfile: (payload: {
+      userId: number
+      currentPassword: string
+      username?: string
+      email?: string | null
+      newPassword?: string
+    }) => ipcRenderer.invoke('auth:updateProfile', payload)
   },
 
   campaigns: {
