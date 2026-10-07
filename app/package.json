@@ -30,7 +30,10 @@
     "cors": "^2.8.6",
     "electron-updater": "^6.3.9",
     "express": "^5.2.1",
+    "lucide-react": "^1.52.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.4",
+    "remark-gfm": "^4.0.1",
     "socket.io": "^4.8.4",
     "socket.io-client": "^4.8.4",
     "tailwindcss": "^4.3.3"

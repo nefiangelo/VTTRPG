@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import MarkdownViewer from './MarkdownViewer'
 
 export interface ActiveHandout {
   id: string
@@ -30,9 +31,9 @@ export default function VttGridCanvas({
   const [gridSize, setGridSize] = useState(50)
   const [showGrid, setShowGrid] = useState(true)
 
-  const handleZoomIn = () => setZoomLevel((z) => Math.min(200, z + 15))
-  const handleZoomOut = () => setZoomLevel((z) => Math.max(50, z - 15))
-  const handleResetZoom = () => setZoomLevel(100)
+  const handleZoomIn = (): void => setZoomLevel((z) => Math.min(200, z + 15))
+  const handleZoomOut = (): void => setZoomLevel((z) => Math.max(50, z - 15))
+  const handleResetZoom = (): void => setZoomLevel(100)
 
   return (
     <main className='flex-1 h-screen relative overflow-hidden bg-vtt-dark-gray select-none flex flex-col'>
@@ -57,8 +58,12 @@ export default function VttGridCanvas({
 
       {/* Handout Compartilhado na Mesa */}
       {activeHandout && (
-        <div className='absolute inset-0 z-30 flex items-center justify-center p-6 bg-black/70 backdrop-blur-xs'>
-          <div className='bg-vtt-dark border border-vtt-light-gray/40 rounded-2xl p-5 max-w-xl max-h-[85vh] w-full shadow-2xl flex flex-col gap-3'>
+        <div className='absolute inset-0 z-30 flex items-center justify-center p-6 bg-black/75 backdrop-blur-xs'>
+          <div
+            className={`bg-vtt-dark border border-vtt-light-gray/40 rounded-2xl p-5 ${
+              activeHandout.type === 'image' ? 'max-w-xl' : 'max-w-3xl'
+            } max-h-[85vh] w-full shadow-2xl flex flex-col gap-3`}
+          >
             <div className='flex items-center justify-between border-b border-vtt-dark-gray pb-2'>
               <div className='flex flex-col min-w-0'>
                 <h3 className='text-base font-bold text-white truncate font-cinzel'>{activeHandout.title}</h3>
@@ -69,22 +74,24 @@ export default function VttGridCanvas({
               <button
                 type='button'
                 onClick={onCloseHandout}
-                className='px-3 py-1 rounded bg-vtt-dark-gray hover:bg-neutral-700 text-neutral-300 text-xs font-semibold cursor-pointer'
+                className='px-3 py-1 rounded-lg bg-vtt-dark-gray hover:bg-neutral-700 text-neutral-300 text-xs font-semibold cursor-pointer border border-vtt-light-gray/30'
               >
                 ✕ Fechar
               </button>
             </div>
 
-            <div className='overflow-y-auto flex-1 flex flex-col items-center justify-center p-2'>
+            <div className='overflow-y-auto flex-1 p-2'>
               {activeHandout.type === 'image' ? (
-                <img
-                  src={String(activeHandout.data?.url || '')}
-                  alt={activeHandout.title}
-                  className='max-h-80 max-w-full object-contain rounded'
-                />
+                <div className='flex items-center justify-center'>
+                  <img
+                    src={String(activeHandout.data?.url || '')}
+                    alt={activeHandout.title}
+                    className='max-h-80 max-w-full object-contain rounded-xl'
+                  />
+                </div>
               ) : (
-                <div className='w-full p-4 bg-vtt-dark-gray rounded-xl text-neutral-200 text-xs whitespace-pre-wrap leading-relaxed select-text'>
-                  {String(activeHandout.data?.markdown || '')}
+                <div className='w-full p-4 bg-vtt-dark-gray/60 rounded-xl border border-vtt-light-gray/30 select-text'>
+                  <MarkdownViewer markdown={String(activeHandout.data?.markdown || '')} />
                 </div>
               )}
             </div>
