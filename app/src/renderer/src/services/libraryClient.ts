@@ -12,7 +12,7 @@ export interface LibraryClient {
   createNode: (payload: CreateCampaignNodePayload) => Promise<{ success: boolean; node?: CampaignNode; error?: string }>
   updateNode: (payload: UpdateCampaignNodePayload) => Promise<{ success: boolean; node?: CampaignNode; error?: string }>
   deleteNode: (id: string) => Promise<{ success: boolean; error?: string }>
-  moveNode: (id: string, newParentId: string | null) => Promise<{ success: boolean; error?: string }>
+  moveNode: (id: string, newParentId: string | null, orderIndex?: number) => Promise<{ success: boolean; error?: string }>
   toggleVisibility: (id: string, visibility: NodeVisibility) => Promise<{ success: boolean; error?: string }>
   togglePermission: (id: string, permission: NodePermission) => Promise<{ success: boolean; error?: string }>
   setNodeAccess: (
@@ -57,8 +57,12 @@ export function createLocalLibraryClient(
       return await window.api.campaignNodes.delete(id, campaignId)
     },
 
-    moveNode: async (id, newParentId) => {
-      return await window.api.campaignNodes.update({ id, parent_id: newParentId }, campaignId)
+    moveNode: async (id, newParentId, orderIndex) => {
+      const payload: UpdateCampaignNodePayload = { id, parent_id: newParentId }
+      if (orderIndex !== undefined) {
+        payload.order_index = orderIndex
+      }
+      return await window.api.campaignNodes.update(payload, campaignId)
     },
 
     toggleVisibility: async (id, visibility) => {
@@ -168,12 +172,16 @@ export function createRemoteLibraryClient(config: {
       }
     },
 
-    moveNode: async (id, newParentId) => {
+    moveNode: async (id, newParentId, orderIndex) => {
       try {
+        const body: Record<string, unknown> = { parent_id: newParentId }
+        if (orderIndex !== undefined) {
+          body.order_index = orderIndex
+        }
         const res = await fetch(`${baseUrl}/api/session/nodes/${id}`, {
           method: 'PATCH',
           headers: authHeaders,
-          body: JSON.stringify({ parent_id: newParentId })
+          body: JSON.stringify(body)
         })
         return await res.json()
       } catch (err: unknown) {

@@ -125,7 +125,7 @@ export default function SessionSidebar({
     loadParticipants()
   }, [loadNodes, loadParticipants])
 
-  const handleCreateNode = async (payload: CreateCampaignNodePayload) => {
+  const handleCreateNode = async (payload: CreateCampaignNodePayload): Promise<void> => {
     if (!libraryClient) return
     const res = await libraryClient.createNode(payload)
     if (res.success) {
@@ -136,7 +136,7 @@ export default function SessionSidebar({
     }
   }
 
-  const handleUpdateNode = async (payload: { id: string; name?: string; description?: string | null; data?: Record<string, unknown> }) => {
+  const handleUpdateNode = async (payload: { id: string; name?: string; description?: string | null; data?: Record<string, unknown> }): Promise<void> => {
     if (!libraryClient) return
     const res = await libraryClient.updateNode(payload)
     if (res.success) {
@@ -152,7 +152,7 @@ export default function SessionSidebar({
     visibility: NodeVisibility,
     sharedWith: string[],
     permission: NodePermission
-  ) => {
+  ): Promise<void> => {
     if (!libraryClient) return
     const res = await libraryClient.setNodeAccess(id, visibility, sharedWith, permission)
     if (res.success) {
@@ -163,7 +163,7 @@ export default function SessionSidebar({
     }
   }
 
-  const handleDeleteNode = async (id: string) => {
+  const handleDeleteNode = async (id: string): Promise<void> => {
     if (!libraryClient) return
     const res = await libraryClient.deleteNode(id)
     if (res.success) {
@@ -171,6 +171,21 @@ export default function SessionSidebar({
       onLibraryChanged?.()
     } else {
       throw new Error(res.error || 'Falha ao excluir item.')
+    }
+  }
+
+  const handleMoveNode = async (
+    id: string,
+    newParentId: string | null,
+    orderIndex?: number
+  ): Promise<void> => {
+    if (!libraryClient) return
+    const res = await libraryClient.moveNode(id, newParentId, orderIndex)
+    if (res.success) {
+      await loadNodes()
+      onLibraryChanged?.()
+    } else {
+      throw new Error(res.error || 'Falha ao mover item.')
     }
   }
 
@@ -267,6 +282,7 @@ export default function SessionSidebar({
               onUpdateNode={handleUpdateNode}
               onSetNodeAccess={handleSetNodeAccess}
               onDeleteNode={handleDeleteNode}
+              onMoveNode={handleMoveNode}
               onShowToTable={onShowToTable}
             />
           )}
