@@ -455,15 +455,14 @@ export default function ExplorerTab({
               setViewerOpen(true)
             }
           }}
-          className={`group flex items-center justify-between py-1.5 pr-2 rounded-lg cursor-pointer transition-all duration-150 text-xs relative ${
-            isBeingDragged
-              ? 'opacity-40 scale-[0.98] border border-dashed border-vtt-golden/60 bg-neutral-900/40'
-              : isTarget && targetPos === 'inside'
-                ? 'ring-2 ring-vtt-golden bg-amber-950/40 text-vtt-golden shadow-md'
-                : isInvalidTarget
-                  ? 'opacity-40 cursor-not-allowed'
-                  : 'hover:bg-vtt-dark-gray/70 text-vtt-light'
-          }`}
+          className={`group flex items-center justify-between py-1.5 pr-2 rounded-lg cursor-pointer transition-all duration-150 text-xs relative ${isBeingDragged
+            ? 'opacity-40 scale-[0.98] border border-dashed border-vtt-golden/60 bg-neutral-900/40'
+            : isTarget && targetPos === 'inside'
+              ? 'ring-2 ring-vtt-golden bg-amber-950/40 text-vtt-golden shadow-md'
+              : isInvalidTarget
+                ? 'opacity-40 cursor-not-allowed'
+                : 'hover:bg-vtt-dark-gray/70 text-vtt-light'
+            }`}
           style={{ paddingLeft }}
         >
           {/* Lado Esquerdo: Grip Handle + Ícone + Nome */}
@@ -591,29 +590,6 @@ export default function ExplorerTab({
           </span>
 
           <div className='flex items-center gap-1.5'>
-            {isGM && (
-              <>
-                <button
-                  type='button'
-                  onClick={(): void => openCreate(null, 'folder')}
-                  className='flex items-center gap-1 px-2 py-1 rounded bg-vtt-dark-gray hover:bg-neutral-700 text-vtt-light text-xs border border-vtt-light-gray/40 cursor-pointer font-medium transition-colors'
-                  title='Criar nova pasta na raiz'
-                >
-                  <Folder className='w-3 h-3 text-amber-400' />
-                  <span>+ Pasta</span>
-                </button>
-                <button
-                  type='button'
-                  onClick={(): void => openCreate(null, 'note')}
-                  className='flex items-center gap-1 px-2 py-1 rounded bg-vtt-red hover:bg-vtt-dark-red text-white text-xs cursor-pointer font-semibold shadow transition-colors'
-                  title='Criar novo arquivo na raiz'
-                >
-                  <Plus className='w-3 h-3' />
-                  <span>+ Arquivo</span>
-                </button>
-              </>
-            )}
-
             <button
               type='button'
               onClick={onRefresh}
@@ -650,17 +626,39 @@ export default function ExplorerTab({
               key={tab.id}
               type='button'
               onClick={(): void => setFilterType(tab.id as typeof filterType)}
-              className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${
-                filterType === tab.id
-                  ? 'bg-vtt-dark-gray text-vtt-golden border border-vtt-light-gray/50 font-semibold shadow-xs'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
+              className={`px-2 py-0.5 rounded cursor-pointer transition-colors ${filterType === tab.id
+                ? 'bg-vtt-dark-gray text-vtt-golden border border-vtt-light-gray/50 font-semibold shadow-xs'
+                : 'text-neutral-400 hover:text-white'
+                }`}
             >
               {tab.label}
             </button>
           ))}
         </div>
       </div>
+
+      {isGM && (
+        <div className='w-full flex gap-3 my-2 px-4'>
+          <button
+            type='button'
+            onClick={(): void => openCreate(null, 'folder')}
+            className='w-1/2 flex items-center gap-1 px-2 py-1 rounded bg-vtt-dark-gray hover:bg-neutral-700 text-vtt-light text-xs border border-vtt-light-gray/40 cursor-pointer font-medium transition-colors'
+            title='Criar nova pasta na raiz'
+          >
+            <Folder className='w-3 h-3 text-amber-400' />
+            <span>Pasta</span>
+          </button>
+          <button
+            type='button'
+            onClick={(): void => openCreate(null, 'note')}
+            className='w-1/2 flex items-center gap-1 px-2 py-1 rounded bg-vtt-red hover:bg-vtt-dark-red text-white text-xs cursor-pointer font-semibold shadow transition-colors'
+            title='Criar novo arquivo na raiz'
+          >
+            <Plus className='w-3 h-3' />
+            <span>Arquivo</span>
+          </button>
+        </div>
+      )}
 
       {/* Árvore de Diretórios (Drop Zone na Raiz) */}
       <div
@@ -720,11 +718,10 @@ export default function ExplorerTab({
             onDrop={(e): void => {
               handleDropOnRoot(e)
             }}
-            className={`p-3 mt-3 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 text-xs font-semibold transition-all cursor-pointer ${
-              dropTarget?.id === 'root'
-                ? 'border-vtt-golden bg-amber-950/40 text-vtt-golden scale-[1.01] shadow-lg'
-                : 'border-neutral-700/60 text-neutral-400 hover:border-neutral-500 bg-neutral-900/30'
-            }`}
+            className={`p-3 mt-3 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 text-xs font-semibold transition-all cursor-pointer ${dropTarget?.id === 'root'
+              ? 'border-vtt-golden bg-amber-950/40 text-vtt-golden scale-[1.01] shadow-lg'
+              : 'border-neutral-700/60 text-neutral-400 hover:border-neutral-500 bg-neutral-900/30'
+              }`}
           >
             <ArrowDownToLine className='w-4 h-4' />
             <span>Soltar aqui para mover para a raiz</span>

@@ -16,6 +16,15 @@ import ChatTab from './ChatTab'
 import ParticipantsTab from './ParticipantsTab'
 import LogsTab from './LogsTab'
 import SettingsTab from './SettingsTab'
+import {
+  FolderTree,
+  MessageSquare,
+  Users,
+  ScrollText,
+  Settings,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react'
 
 type ActiveSidebarTab = 'explorer' | 'chat' | 'participants' | 'logs' | 'settings'
 
@@ -202,12 +211,18 @@ export default function SessionSidebar({
       timestamp: ''
     }))
 
-  const tabs: { id: ActiveSidebarTab; label: string; icon: string }[] = [
-    { id: 'explorer', label: 'Conteúdo', icon: '📁' },
-    { id: 'chat', label: 'Chat', icon: '💬' },
-    { id: 'participants', label: 'Jogadores', icon: '👥' },
-    { id: 'logs', label: 'Logs', icon: '📜' },
-    { id: 'settings', label: 'Sessão', icon: '⚙️' }
+  interface SidebarTabItem {
+    id: ActiveSidebarTab
+    label: string
+    icon: React.ComponentType<{ className?: string }>
+  }
+
+  const tabs: SidebarTabItem[] = [
+    { id: 'explorer', label: 'Conteúdo', icon: FolderTree },
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'participants', label: 'Jogadores', icon: Users },
+    { id: 'logs', label: 'Logs', icon: ScrollText },
+    { id: 'settings', label: 'Sessão', icon: Settings }
   ]
 
   return (
@@ -231,11 +246,11 @@ export default function SessionSidebar({
 
         <button
           type='button'
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className='w-7 h-7 rounded hover:bg-vtt-dark-gray flex items-center justify-center text-xs text-vtt-light cursor-pointer'
+          onClick={(): void => setIsCollapsed(!isCollapsed)}
+          className='w-7 h-7 rounded-lg hover:bg-vtt-dark-gray flex items-center justify-center text-neutral-400 hover:text-white transition-colors cursor-pointer border border-transparent hover:border-vtt-light-gray/30'
           title={isCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
         >
-          {isCollapsed ? '»' : '«'}
+          {isCollapsed ? <ChevronRight className='w-4 h-4' /> : <ChevronLeft className='w-4 h-4' />}
         </button>
       </div>
 
@@ -243,23 +258,32 @@ export default function SessionSidebar({
       <div className='flex border-b border-vtt-dark-gray bg-vtt-dark-gray/30'>
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id
+          const Icon = tab.icon
           return (
             <button
               key={tab.id}
               type='button'
-              onClick={() => {
+              onClick={(): void => {
                 setActiveTab(tab.id)
                 if (isCollapsed) setIsCollapsed(false)
               }}
-              className={`flex-1 py-2 text-center text-xs font-semibold transition-colors cursor-pointer border-b-2 flex flex-col items-center justify-center gap-0.5 ${
+              className={`flex-1 py-2 text-center text-xs font-semibold transition-all cursor-pointer border-b-2 flex flex-col items-center justify-center gap-1 group ${
                 isActive
-                  ? 'border-vtt-red text-white bg-vtt-dark-gray/50'
-                  : 'border-transparent text-neutral-400 hover:text-vtt-light'
+                  ? 'border-vtt-red text-white bg-vtt-dark-gray/50 shadow-inner'
+                  : 'border-transparent text-neutral-400 hover:text-vtt-light hover:bg-neutral-800/30'
               }`}
               title={tab.label}
             >
-              <span>{tab.icon}</span>
-              {!isCollapsed && <span className='text-[10px]'>{tab.label}</span>}
+              <Icon
+                className={`w-4 h-4 transition-colors ${
+                  isActive ? 'text-vtt-golden' : 'text-neutral-400 group-hover:text-neutral-200'
+                }`}
+              />
+              {!isCollapsed && (
+                <span className={`text-[10px] tracking-tight ${isActive ? 'text-white font-medium' : 'text-neutral-400'}`}>
+                  {tab.label}
+                </span>
+              )}
             </button>
           )
         })}
