@@ -3,6 +3,7 @@ import { getDb } from './db'
 /* ─── Types ──────────────────────────────────────────────────── */
 
 export interface AttributeField {
+  id?: string
   key: string
   label: string
   type: 'number' | 'text' | 'checkbox' | 'textarea' | 'list'

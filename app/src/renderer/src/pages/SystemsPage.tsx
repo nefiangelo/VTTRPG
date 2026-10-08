@@ -161,6 +161,48 @@ const IconFileImport = (): React.JSX.Element => (
   </svg>
 )
 
+const IconBox = (): React.JSX.Element => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
+    <path d="m3.3 7 8.7 5 8.7-5" />
+    <path d="M12 22V12" />
+  </svg>
+)
+
+const IconCharacter = (): React.JSX.Element => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <path d="M14 2v6h6" />
+    <path d="M16 13H8" />
+    <path d="M16 17H8" />
+    <path d="M10 9H8" />
+  </svg>
+)
+
+const IconInfo = (): React.JSX.Element => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 16v-4" />
+    <path d="M12 8h.01" />
+  </svg>
+)
+
+const IconLayers = (): React.JSX.Element => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+    <polyline points="2 17 12 22 22 17" />
+    <polyline points="2 12 12 17 22 12" />
+  </svg>
+)
+
+const IconAlert = (): React.JSX.Element => (
+  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+    <path d="M12 9v4" />
+    <path d="M12 17h.01" />
+  </svg>
+)
+
 /* ─── Import System Modal (EM DEV) ──────────────────────────── */
 function ImportModal({ onClose }: { onClose: () => void }): React.JSX.Element {
   return (
@@ -387,13 +429,13 @@ function GroupCard({
   const addField = (): void => {
     onUpdate({
       ...group,
-      fields: [...group.fields, { key: uid(), label: '', type: 'number' }],
+      fields: [...group.fields, { id: uid(), key: uid(), label: '', type: 'number' }],
     })
   }
 
   const updateField = (i: number, f: AttributeField): void => {
     const fields = [...group.fields]
-    fields[i] = f
+    fields[i] = { ...f, id: f.id || fields[i]?.id || uid() }
     onUpdate({ ...group, fields })
   }
 
@@ -482,7 +524,7 @@ function GroupCard({
         ) : (
           group.fields.map((f, i) => (
             <FieldRow
-              key={f.key ? `${f.key}-${i}` : String(i)}
+              key={f.id || (f.key ? `${f.key}-${i}` : String(i))}
               field={f}
               index={i}
               onUpdate={nf => updateField(i, nf)}
@@ -529,11 +571,18 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     return (initial?.structure?.attributeGroups ?? []).map(g => ({
       ...g,
       id: g.id || uid(),
-      fields: g.fields ?? [],
+      fields: (g.fields ?? []).map(f => ({ ...f, id: f.id || uid() })),
     }))
   })
   const [contentFields, setContentFields] = useState<Partial<Record<ContentType, AttributeField[]>>>(() => {
-    return initial?.structure?.contentFields ?? {}
+    const raw = initial?.structure?.contentFields ?? {}
+    const result: Partial<Record<ContentType, AttributeField[]>> = {}
+    for (const [ct, list] of Object.entries(raw)) {
+      if (list) {
+        result[ct as ContentType] = list.map(f => ({ ...f, id: f.id || uid() }))
+      }
+    }
+    return result
   })
   const [sheetLayout, setSheetLayout] = useState<SheetLayoutConfig>(() => {
     return (
@@ -722,6 +771,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
 
   const addContentField = (): void => {
     const newField: AttributeField = {
+      id: uid(),
       key: `campo_${uid().slice(0, 4)}`,
       label: '',
       type: 'text',
@@ -736,7 +786,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const updateContentField = (idx: number, updated: AttributeField): void => {
     setContentFields(prev => {
       const list = [...(prev[selectedContentType] ?? [])]
-      list[idx] = updated
+      list[idx] = { ...updated, id: updated.id || list[idx]?.id || uid() }
       return { ...prev, [selectedContentType]: list }
     })
   }
@@ -752,7 +802,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     const preset = DEFAULT_CONTENT_FIELDS[ct] ?? []
     setContentFields(prev => ({
       ...prev,
-      [ct]: [...preset],
+      [ct]: preset.map(f => ({ ...f, id: uid() })),
     }))
   }
 
@@ -798,48 +848,6 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     setLoading(false)
     onSaved()
   }
-
-  const IconBox = (): React.JSX.Element => (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z" />
-      <path d="m3.3 7 8.7 5 8.7-5" />
-      <path d="M12 22V12" />
-    </svg>
-  )
-
-  const IconCharacter = (): React.JSX.Element => (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <path d="M14 2v6h6" />
-      <path d="M16 13H8" />
-      <path d="M16 17H8" />
-      <path d="M10 9H8" />
-    </svg>
-  )
-
-  const IconInfo = (): React.JSX.Element => (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 16v-4" />
-      <path d="M12 8h.01" />
-    </svg>
-  )
-
-  const IconLayers = (): React.JSX.Element => (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
-    </svg>
-  )
-
-  const IconAlert = (): React.JSX.Element => (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-      <path d="M12 9v4" />
-      <path d="M12 17h.01" />
-    </svg>
-  )
 
   return (
     <div
@@ -1095,7 +1103,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
                             )}
                             {currentFields.map((f, i) => (
                               <FieldRow
-                                key={f.key ? `${f.key}-${i}` : String(i)}
+                                key={f.id || (f.key ? `${f.key}-${i}` : String(i))}
                                 field={f}
                                 index={i}
                                 onUpdate={nf => updateContentField(i, nf)}

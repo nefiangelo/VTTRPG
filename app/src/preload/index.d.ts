@@ -127,6 +127,7 @@ export interface PersistentParticipant {
 
 /* -- RPG Systems Full ---------------------------------------- */
 export interface AttributeField {
+  id?: string
   key: string
   label: string
   type: 'number' | 'text' | 'checkbox' | 'textarea' | 'list'
