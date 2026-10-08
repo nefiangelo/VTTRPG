@@ -63,10 +63,16 @@ const api = {
   characters: {
     getByCampaign: (campaignId: number, userId?: number) =>
       ipcRenderer.invoke('character:getByCampaign', campaignId, userId),
+    getVault: (userId: number) =>
+      ipcRenderer.invoke('character:getVault', userId),
     getById: (id: number) =>
       ipcRenderer.invoke('character:getById', id),
+    getByUuid: (uuid: string) =>
+      ipcRenderer.invoke('character:getByUuid', uuid),
     save: (payload: unknown) =>
       ipcRenderer.invoke('character:save', payload),
+    importToCampaign: (payload: unknown) =>
+      ipcRenderer.invoke('character:importToCampaign', payload),
     delete: (id: number, userId: number, isGM?: boolean) =>
       ipcRenderer.invoke('character:delete', id, userId, isGM),
   },

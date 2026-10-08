@@ -1,6 +1,7 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
 import { join } from 'path'
+import { randomUUID } from 'crypto'
 
 let db: Database.Database | null = null
 
@@ -135,20 +136,25 @@ function runMigrations(db: Database.Database): void {
   // ── Characters / Sheets ────────────────────────────────────────────────────
   db.exec(`
     CREATE TABLE IF NOT EXISTS characters (
-      id            INTEGER PRIMARY KEY AUTOINCREMENT,
-      campaign_id   INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
-      user_id       INTEGER NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
-      name          TEXT    NOT NULL,
-      avatar_url    TEXT,
-      role          TEXT    NOT NULL DEFAULT 'pc'
-                            CHECK (role IN ('pc','npc','enemy')),
-      sheet_data    TEXT    NOT NULL DEFAULT '{}',
-      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
-      updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+      id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+      uuid                  TEXT    UNIQUE,
+      campaign_id           INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+      user_id               INTEGER NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+      rpg_system_id         INTEGER REFERENCES rpg_systems(id) ON DELETE RESTRICT,
+      system_slug           TEXT,
+      name                  TEXT    NOT NULL,
+      avatar_url            TEXT,
+      role                  TEXT    NOT NULL DEFAULT 'pc'
+                                    CHECK (role IN ('pc','npc','enemy')),
+      sheet_data            TEXT    NOT NULL DEFAULT '{}',
+      origin_character_uuid TEXT,
+      created_at            TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at            TEXT    NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE INDEX IF NOT EXISTS idx_characters_campaign ON characters(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_characters_user     ON characters(user_id);
+    CREATE INDEX IF NOT EXISTS idx_characters_uuid     ON characters(uuid);
   `)
 
   // ── Sessions ───────────────────────────────────────────────────────────────
@@ -272,6 +278,96 @@ function runMigrations(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_session_participants_session  ON session_participants(session_id);
     CREATE INDEX IF NOT EXISTS idx_session_participants_campaign ON session_participants(campaign_id);
   `)
+
+  // ── Migrations for Global Identifiers & Character Vault ───────────────────
+  try {
+    db.exec(`ALTER TABLE users ADD COLUMN uuid TEXT;`)
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE rpg_systems ADD COLUMN uuid TEXT;`)
+  } catch {}
+  try {
+    db.exec(`ALTER TABLE campaigns ADD COLUMN uuid TEXT;`)
+  } catch {}
+
+  try {
+    const charCols = db.prepare("PRAGMA table_info(characters)").all() as Array<{ name: string; notnull: number }>
+    const campaignIdCol = charCols.find((c) => c.name === 'campaign_id')
+    const needsMigration = campaignIdCol && campaignIdCol.notnull === 1
+
+    if (needsMigration) {
+      db.exec(`
+        CREATE TABLE characters_v2 (
+          id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+          uuid                  TEXT    UNIQUE,
+          campaign_id           INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+          user_id               INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          rpg_system_id         INTEGER REFERENCES rpg_systems(id) ON DELETE RESTRICT,
+          system_slug           TEXT,
+          name                  TEXT    NOT NULL,
+          avatar_url            TEXT,
+          role                  TEXT    NOT NULL DEFAULT 'pc' CHECK (role IN ('pc','npc','enemy')),
+          sheet_data            TEXT    NOT NULL DEFAULT '{}',
+          origin_character_uuid TEXT,
+          created_at            TEXT    NOT NULL DEFAULT (datetime('now')),
+          updated_at            TEXT    NOT NULL DEFAULT (datetime('now'))
+        );
+
+        INSERT INTO characters_v2 (id, campaign_id, user_id, name, avatar_url, role, sheet_data, created_at, updated_at)
+        SELECT id, campaign_id, user_id, name, avatar_url, role, sheet_data, created_at, updated_at FROM characters;
+
+        DROP TABLE characters;
+        ALTER TABLE characters_v2 RENAME TO characters;
+        CREATE INDEX IF NOT EXISTS idx_characters_campaign ON characters(campaign_id);
+        CREATE INDEX IF NOT EXISTS idx_characters_user     ON characters(user_id);
+        CREATE INDEX IF NOT EXISTS idx_characters_uuid     ON characters(uuid);
+      `)
+    } else {
+      try { db.exec(`ALTER TABLE characters ADD COLUMN uuid TEXT;`) } catch {}
+      try { db.exec(`ALTER TABLE characters ADD COLUMN rpg_system_id INTEGER REFERENCES rpg_systems(id) ON DELETE RESTRICT;`) } catch {}
+      try { db.exec(`ALTER TABLE characters ADD COLUMN system_slug TEXT;`) } catch {}
+      try { db.exec(`ALTER TABLE characters ADD COLUMN origin_character_uuid TEXT;`) } catch {}
+      try { db.exec(`CREATE INDEX IF NOT EXISTS idx_characters_uuid ON characters(uuid);`) } catch {}
+    }
+  } catch (e) {
+    console.error('Erro na migração de characters:', e)
+  }
+
+  // Backfill UUIDs for any entities missing a global identifier
+  try {
+    const charsMissing = db.prepare("SELECT id FROM characters WHERE uuid IS NULL").all() as Array<{ id: number }>
+    for (const c of charsMissing) {
+      db.prepare("UPDATE characters SET uuid = ? WHERE id = ?").run(randomUUID(), c.id)
+    }
+
+    const usersMissing = db.prepare("SELECT id FROM users WHERE uuid IS NULL").all() as Array<{ id: number }>
+    for (const u of usersMissing) {
+      db.prepare("UPDATE users SET uuid = ? WHERE id = ?").run(randomUUID(), u.id)
+    }
+
+    const systemsMissing = db.prepare("SELECT id FROM rpg_systems WHERE uuid IS NULL").all() as Array<{ id: number }>
+    for (const s of systemsMissing) {
+      db.prepare("UPDATE rpg_systems SET uuid = ? WHERE id = ?").run(randomUUID(), s.id)
+    }
+
+    const campaignsMissing = db.prepare("SELECT id FROM campaigns WHERE uuid IS NULL").all() as Array<{ id: number }>
+    for (const cp of campaignsMissing) {
+      db.prepare("UPDATE campaigns SET uuid = ? WHERE id = ?").run(randomUUID(), cp.id)
+    }
+
+    // Backfill rpg_system_id and system_slug for existing campaign characters
+    db.exec(`
+      UPDATE characters 
+      SET rpg_system_id = (SELECT rpg_system_id FROM campaigns WHERE campaigns.id = characters.campaign_id)
+      WHERE rpg_system_id IS NULL AND campaign_id IS NOT NULL;
+
+      UPDATE characters
+      SET system_slug = (SELECT slug FROM rpg_systems WHERE rpg_systems.id = characters.rpg_system_id)
+      WHERE system_slug IS NULL AND rpg_system_id IS NOT NULL;
+    `)
+  } catch (e) {
+    console.error('Erro ao preencher dados de migração de UUID/sistemas:', e)
+  }
 }
 
 export function closeDb(): void {

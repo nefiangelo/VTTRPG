@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import Sidebar from '../components/Sidebar/Sidebar'
 import EditCampaignModal from '../components/EditCampaignModal'
+import CharacterSheetModal from '../components/sheet/CharacterSheetModal'
 import { useAuth } from '../context/AuthContext'
-import type { Session, CampaignWithDetails, CampaignMember } from '../../../preload/index.d'
+import type { Session, CampaignWithDetails, CampaignMember, CharacterEntry, RpgSystemFull } from '../../../preload/index.d'
 
 export default function CampaignSessionsPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
@@ -14,10 +15,12 @@ export default function CampaignSessionsPage(): React.JSX.Element {
   const [campaign, setCampaign] = useState<CampaignWithDetails | null>(null)
   const [members, setMembers] = useState<CampaignMember[]>([])
   const [sessions, setSessions] = useState<Session[]>([])
+  const [characters, setCharacters] = useState<CharacterEntry[]>([])
+  const [system, setSystem] = useState<RpgSystemFull | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [filter, setFilter] = useState<'all' | 'active' | 'scheduled' | 'completed'>('all')
 
-  // Modais
+  // Modais de Sessão e Campanha
   const [showEditCampaignModal, setShowEditCampaignModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [createTitle, setCreateTitle] = useState('')
@@ -37,20 +40,33 @@ export default function CampaignSessionsPage(): React.JSX.Element {
   const [deleteSessionModal, setDeleteSessionModal] = useState<Session | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
 
+  // Modais de Fichas / Vault
+  const [showImportVaultModal, setShowImportVaultModal] = useState(false)
+  const [vaultCharacters, setVaultCharacters] = useState<CharacterEntry[]>([])
+  const [selectedVaultCharId, setSelectedVaultCharId] = useState<number | null>(null)
+  const [importLoading, setImportLoading] = useState(false)
+  const [activeSheetChar, setActiveSheetChar] = useState<CharacterEntry | null>(null)
+
   const [actionError, setActionError] = useState<string | null>(null)
 
   const loadData = useCallback(async () => {
     if (!campaignId || isNaN(campaignId)) return
     setIsLoading(true)
     try {
-      const [camp, mems, sess] = await Promise.all([
+      const [camp, mems, sess, chars] = await Promise.all([
         window.api.campaigns.getById(campaignId),
         window.api.campaigns.getMembers(campaignId),
         window.api.sessions.getByCampaign(campaignId),
+        window.api.characters.getByCampaign(campaignId),
       ])
       setCampaign(camp)
       setMembers(mems)
       setSessions(sess)
+      setCharacters(chars || [])
+      if (camp?.rpg_system_id) {
+        const sys = await window.api.systems.getById(camp.rpg_system_id)
+        setSystem(sys)
+      }
     } catch (err) {
       console.error('Erro ao carregar dados da campanha:', err)
       setActionError('Falha ao carregar informações da campanha.')
@@ -280,6 +296,48 @@ export default function CampaignSessionsPage(): React.JSX.Element {
       setActionError('Erro ao excluir sessão.')
     } finally {
       setDeleteLoading(false)
+    }
+  }
+
+  // Abrir modal para importar ficha do Vault para esta campanha
+  const handleOpenImportVault = async () => {
+    if (!user) return
+    try {
+      const vChars = await window.api.characters.getVault(user.id)
+      setVaultCharacters(vChars || [])
+      if (vChars && vChars.length > 0) {
+        const matching = vChars.find(c => c.rpg_system_id === campaign?.rpg_system_id)
+        setSelectedVaultCharId(matching ? matching.id : vChars[0].id)
+      } else {
+        setSelectedVaultCharId(null)
+      }
+      setShowImportVaultModal(true)
+    } catch (err) {
+      console.error('Erro ao buscar fichas do cofre:', err)
+    }
+  }
+
+  // Executar importação (clona a ficha do cofre para a campanha de forma independente)
+  const handleImportVaultChar = async () => {
+    if (!selectedVaultCharId || !user) return
+    setImportLoading(true)
+    setActionError(null)
+    try {
+      const res = await window.api.characters.importToCampaign({
+        characterId: selectedVaultCharId,
+        campaignId,
+        userId: user.id
+      })
+      if (res.success && res.character) {
+        setCharacters(prev => [...prev, res.character!])
+        setShowImportVaultModal(false)
+      } else {
+        setActionError(res.error || 'Erro ao importar ficha do cofre.')
+      }
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setImportLoading(false)
     }
   }
 
@@ -532,6 +590,70 @@ export default function CampaignSessionsPage(): React.JSX.Element {
             </div>
           </section>
         )}
+
+        {/* Personagens da Campanha */}
+        <section className='flex flex-col gap-4 bg-[#181818]/60 border border-vtt-dark-gray rounded-xl p-5'>
+          <div className='flex items-center justify-between border-b border-vtt-dark-gray pb-3'>
+            <div className='flex items-center gap-3'>
+              <h2 className='text-lg font-bold text-vtt-light flex items-center gap-2'>
+                <span>👤</span> Personagens da Campanha
+              </h2>
+              <span className='text-xs text-neutral-400 bg-vtt-dark-gray px-2 py-0.5 rounded-full'>
+                {characters.length}
+              </span>
+            </div>
+
+            <button
+              type='button'
+              onClick={handleOpenImportVault}
+              className='flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-vtt-golden text-neutral-950 font-bold text-xs hover:bg-[#d8c26d] transition-all cursor-pointer shadow-sm'
+            >
+              <span>+</span> Importar do Cofre
+            </button>
+          </div>
+
+          {characters.length === 0 ? (
+            <div className='text-xs text-neutral-400 py-6 text-center border border-dashed border-vtt-dark-gray rounded-lg bg-black/20 flex flex-col items-center justify-center gap-2'>
+              <p>Nenhum personagem importado para esta campanha ainda.</p>
+              <button
+                type='button'
+                onClick={handleOpenImportVault}
+                className='text-vtt-golden font-semibold hover:underline cursor-pointer'
+              >
+                Clique aqui para importar uma ficha do seu cofre
+              </button>
+            </div>
+          ) : (
+            <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4'>
+              {characters.map(char => (
+                <div
+                  key={char.id}
+                  onClick={() => setActiveSheetChar(char)}
+                  className='bg-[#222222] border border-vtt-dark-gray hover:border-vtt-golden/50 p-3.5 rounded-xl flex items-center gap-3 transition-all hover:bg-[#262626] cursor-pointer group'
+                >
+                  <div className='w-11 h-11 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center overflow-hidden shrink-0 group-hover:border-vtt-golden/40 transition-colors'>
+                    {char.avatar_url ? (
+                      <img src={char.avatar_url} alt={char.name} className='w-full h-full object-cover' />
+                    ) : (
+                      <span className='text-vtt-golden font-bold text-sm'>
+                        {char.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                  </div>
+                  <div className='flex-1 min-w-0'>
+                    <h4 className='text-sm font-bold text-vtt-light group-hover:text-vtt-golden transition-colors truncate'>
+                      {char.name}
+                    </h4>
+                    <span className='text-[10px] text-neutral-400 block truncate'>
+                      {char.role === 'pc' ? 'Personagem de Jogador' : char.role === 'npc' ? 'NPC' : 'Inimigo'}
+                    </span>
+                  </div>
+                  <span className='text-neutral-500 group-hover:text-vtt-golden text-xs'>→</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Sessions Section */}
         <section className='flex flex-col gap-5'>
@@ -1068,6 +1190,142 @@ export default function CampaignSessionsPage(): React.JSX.Element {
           onClose={() => setShowEditCampaignModal(false)}
           onUpdated={() => loadData()}
           onDeleted={() => navigate('/home')}
+        />
+      )}
+
+      {/* ── MODAL: IMPORTAR FICHA DO COFRE (VAULT) ────────────────────────── */}
+      {showImportVaultModal && (
+        <div
+          className='fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4'
+          onClick={e => { if (e.target === e.currentTarget) setShowImportVaultModal(false) }}
+        >
+          <div className='bg-vtt-dark border border-vtt-dark-gray rounded-2xl w-full max-w-md p-6 flex flex-col gap-4 shadow-2xl animate-in fade-in zoom-in-95 duration-150'>
+            <div className='flex items-center justify-between border-b border-vtt-dark-gray pb-3'>
+              <h3 className='text-lg font-bold text-vtt-golden flex items-center gap-2'>
+                <span>📥</span> Importar Ficha do Cofre
+              </h3>
+              <button
+                type='button'
+                onClick={() => setShowImportVaultModal(false)}
+                className='text-neutral-400 hover:text-white text-lg cursor-pointer'
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className='text-xs text-neutral-400 leading-relaxed'>
+              Escolha uma ficha criada previamente no seu <strong>Cofre de Fichas</strong> para importar nesta campanha.
+            </p>
+
+            <div className='bg-amber-950/30 border border-amber-800/40 rounded-xl p-3 text-[11px] text-amber-200/90 leading-relaxed'>
+              <strong className='text-amber-300 block mb-0.5'>Snapshot Independente:</strong>
+              A ficha será copiada para a campanha. Alterações feitas durante o jogo não afetarão o modelo original no cofre, e modificações fora da campanha não alterarão a versão da mesa.
+            </div>
+
+            {vaultCharacters.length === 0 ? (
+              <div className='text-xs text-neutral-400 py-6 text-center border border-dashed border-vtt-dark-gray rounded-xl bg-black/20'>
+                Você ainda não possui fichas criadas no cofre pessoal.
+                <button
+                  type='button'
+                  onClick={() => {
+                    setShowImportVaultModal(false)
+                    navigate('/sheets')
+                  }}
+                  className='text-vtt-golden font-semibold block mt-2 hover:underline cursor-pointer mx-auto'
+                >
+                  Ir para a página de Fichas criar uma
+                </button>
+              </div>
+            ) : (
+              <div className='flex flex-col gap-2 max-h-60 overflow-y-auto pr-1'>
+                {vaultCharacters.map(vc => {
+                  const isSelected = selectedVaultCharId === vc.id
+                  const matchesSystem = campaign?.rpg_system_id && vc.rpg_system_id === campaign.rpg_system_id
+                  return (
+                    <div
+                      key={vc.id}
+                      onClick={() => setSelectedVaultCharId(vc.id)}
+                      className={`p-3 rounded-xl border flex items-center justify-between gap-3 cursor-pointer transition-all ${
+                        isSelected
+                          ? 'border-vtt-golden bg-vtt-golden/10 text-white'
+                          : 'border-vtt-dark-gray bg-[#1a1a1a] hover:border-neutral-500 text-neutral-300'
+                      }`}
+                    >
+                      <div className='flex items-center gap-3 min-w-0'>
+                        <div className='w-9 h-9 rounded-lg bg-neutral-800 border border-neutral-700 flex items-center justify-center shrink-0 overflow-hidden'>
+                          {vc.avatar_url ? (
+                            <img src={vc.avatar_url} alt={vc.name} className='w-full h-full object-cover' />
+                          ) : (
+                            <span className='text-xs font-bold text-vtt-golden'>{vc.name.charAt(0).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div className='min-w-0'>
+                          <h4 className='text-xs font-bold truncate'>{vc.name}</h4>
+                          <span className='text-[10px] text-neutral-400 block truncate'>
+                            {vc.system_name || 'Sistema Padrão'} {matchesSystem && <strong className='text-vtt-golden'>★ Recomendado</strong>}
+                          </span>
+                        </div>
+                      </div>
+                      <input
+                        type='radio'
+                        name='vaultChar'
+                        checked={isSelected}
+                        onChange={() => setSelectedVaultCharId(vc.id)}
+                        className='accent-vtt-golden cursor-pointer'
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <div className='flex items-center gap-3 pt-2 border-t border-vtt-dark-gray'>
+              <button
+                type='button'
+                onClick={() => setShowImportVaultModal(false)}
+                className='flex-1 py-2 rounded-lg border border-vtt-dark-gray text-neutral-300 text-xs font-semibold hover:border-neutral-500 transition-colors cursor-pointer'
+              >
+                Cancelar
+              </button>
+              <button
+                type='button'
+                disabled={importLoading || !selectedVaultCharId || vaultCharacters.length === 0}
+                onClick={handleImportVaultChar}
+                className='flex-1 py-2 rounded-lg bg-vtt-golden text-neutral-950 text-xs font-bold hover:bg-[#d8c26d] transition-colors cursor-pointer disabled:opacity-50'
+              >
+                {importLoading ? 'Importando...' : 'Confirmar Importação'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL: VISUALIZAR FICHA DO PERSONAGEM NA CAMPANHA ─────────────── */}
+      {activeSheetChar && (
+        <CharacterSheetModal
+          character={activeSheetChar}
+          system={system}
+          isGM={isGM}
+          canEdit={true}
+          onClose={() => setActiveSheetChar(null)}
+          onSave={async updated => {
+            const res = await window.api.characters.save({
+              id: updated.id,
+              uuid: updated.uuid,
+              campaign_id: campaignId,
+              user_id: updated.user_id,
+              rpg_system_id: updated.rpg_system_id,
+              system_slug: updated.system_slug,
+              name: updated.name,
+              avatar_url: updated.avatar_url,
+              role: updated.role,
+              sheet_data: updated.sheet_data
+            })
+            if (res.success && res.character) {
+              setCharacters(prev => prev.map(c => (c.id === updated.id ? res.character! : c)))
+              setActiveSheetChar(res.character)
+            }
+          }}
         />
       )}
     </div>

@@ -39,6 +39,16 @@ const IconWrench = (): React.JSX.Element => (
   </svg>
 )
 
+const IconSheet = (): React.JSX.Element => (
+  <svg className='w-6 h-6 shrink-0' viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <path d="M14 2v6h6" />
+    <path d="M16 13H8" />
+    <path d="M16 17H8" />
+    <path d="M10 9H8" />
+  </svg>
+)
+
 /* ─── Nav item definition ────────────────────────────────────── */
 interface NavItem {
   label: string
@@ -49,6 +59,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { label: 'Campanhas', icon: <IconBook />, route: '/home' },
   { label: 'Acessar Sessão', icon: <IconLogin />, route: '/join-campaign' },
+  { label: 'Fichas', icon: <IconSheet />, route: '/sheets' },
   { label: 'Sistemas RPG', icon: <IconWrench />, route: '/systems' },
   { label: 'Homebrew', icon: <IconBook />, route: '/homebrew' },
   { label: 'Amigos', icon: <IconPeople />, route: '/friends' },

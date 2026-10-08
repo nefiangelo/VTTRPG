@@ -364,24 +364,41 @@ export interface ImportBundleResult {
 /* -- Characters / Fichas de Personagem ----------------------- */
 export interface CharacterEntry {
   id: number
-  campaign_id: number
+  uuid?: string
+  campaign_id: number | null
   user_id: number
+  rpg_system_id?: number | null
+  system_slug?: string | null
+  system_name?: string | null
+  genre?: string | null
   name: string
   avatar_url?: string | null
   role: 'pc' | 'npc' | 'enemy'
   sheet_data: Record<string, unknown>
+  origin_character_uuid?: string | null
   created_at: string
   updated_at: string
 }
 
 export interface SaveCharacterPayload {
   id?: number
-  campaign_id: number
+  uuid?: string
+  campaign_id?: number | null
   user_id: number
+  rpg_system_id?: number | null
+  system_slug?: string | null
   name: string
   avatar_url?: string | null
   role?: 'pc' | 'npc' | 'enemy'
   sheet_data?: Record<string, unknown> | string
+  origin_character_uuid?: string | null
+}
+
+export interface ImportCharacterToCampaignPayload {
+  characterId?: number
+  characterUuid?: string
+  campaignId: number
+  userId: number
 }
 
 export interface CharacterResult {
@@ -473,8 +490,11 @@ interface API {
   }
   characters: {
     getByCampaign: (campaignId: number, userId?: number) => Promise<CharacterEntry[]>
+    getVault: (userId: number) => Promise<CharacterEntry[]>
     getById: (id: number) => Promise<CharacterEntry | null>
+    getByUuid: (uuid: string) => Promise<CharacterEntry | null>
     save: (payload: SaveCharacterPayload) => Promise<CharacterResult>
+    importToCampaign: (payload: ImportCharacterToCampaignPayload) => Promise<CharacterResult>
     delete: (id: number, userId: number, isGM?: boolean) => Promise<{ success: boolean; error?: string }>
   }
   systems: {

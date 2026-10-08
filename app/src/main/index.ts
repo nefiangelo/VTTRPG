@@ -21,11 +21,14 @@ import {
 import type { CreateSessionPayload, UpdateSessionPayload, ImportBundlePayload, ApplySyncPayload } from './session'
 import {
   getCharactersByCampaign,
+  getVaultCharacters,
   getCharacterById,
+  getCharacterByUuid,
   saveCharacter,
-  deleteCharacter
+  deleteCharacter,
+  importCharacterToCampaign
 } from './character'
-import type { SaveCharacterPayload } from './character'
+import type { SaveCharacterPayload, ImportCharacterPayload } from './character'
 import {
   getRpgSystemsFull, getRpgSystemById, createRpgSystem, updateRpgSystem, deleteRpgSystem,
   getSystemContent, createSystemContent, updateSystemContent, deleteSystemContent,
@@ -178,11 +181,20 @@ app.whenReady().then(() => {
   ipcMain.handle('character:getByCampaign', (_e, campaignId: number, userId?: number) =>
     getCharactersByCampaign(campaignId, userId)
   )
+  ipcMain.handle('character:getVault', (_e, userId: number) =>
+    getVaultCharacters(userId)
+  )
   ipcMain.handle('character:getById', (_e, id: number) =>
     getCharacterById(id)
   )
+  ipcMain.handle('character:getByUuid', (_e, uuid: string) =>
+    getCharacterByUuid(uuid)
+  )
   ipcMain.handle('character:save', (_e, payload: SaveCharacterPayload) =>
     saveCharacter(payload)
+  )
+  ipcMain.handle('character:importToCampaign', (_e, payload: ImportCharacterPayload) =>
+    importCharacterToCampaign(payload)
   )
   ipcMain.handle('character:delete', (_e, id: number, userId?: number, isGM?: boolean) =>
     deleteCharacter(id, userId, isGM)

@@ -96,6 +96,7 @@ function NodeViewerDialog({
   const characterEntry: CharacterEntry = useMemo(() => {
     return {
       id: typeof node.data?.characterId === 'number' ? node.data.characterId : 0,
+      uuid: (node.data?.characterUuid as string) || node.id || '',
       campaign_id: 0,
       user_id: 0,
       name: node.name,
