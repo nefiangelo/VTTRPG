@@ -31,14 +31,19 @@ import {
   Minus,
   Sparkles,
   Save,
-  Trash2
+  Trash2,
+  Scroll
 } from 'lucide-react'
+import type { RpgSystemFull, CharacterEntry } from '../../../../preload/index.d'
+import CharacterSheetModal from '../sheet/CharacterSheetModal'
 
 interface NodeViewerModalProps {
   node: CampaignNode | null
   isOpen: boolean
   onClose: () => void
   isGM: boolean
+  system?: RpgSystemFull | null
+  onRoll?: (formula: string, label: string) => void
   onUpdate: (payload: { id: string; name?: string; description?: string | null; data?: Record<string, unknown> }) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onShowToTable?: (node: CampaignNode) => void
@@ -48,6 +53,8 @@ interface NodeViewerDialogProps {
   node: CampaignNode
   onClose: () => void
   isGM: boolean
+  system?: RpgSystemFull | null
+  onRoll?: (formula: string, label: string) => void
   onUpdate: (payload: { id: string; name?: string; description?: string | null; data?: Record<string, unknown> }) => Promise<void>
   onDelete: (id: string) => Promise<void>
   onShowToTable?: (node: CampaignNode) => void
@@ -57,6 +64,8 @@ function NodeViewerDialog({
   node,
   onClose,
   isGM,
+  system,
+  onRoll,
   onUpdate,
   onDelete,
   onShowToTable
@@ -81,6 +90,41 @@ function NodeViewerDialog({
   const isDirty = useMemo((): boolean => {
     return noteMarkdown !== originalMarkdown || name !== node.name || description !== (node.description || '')
   }, [noteMarkdown, originalMarkdown, name, description, node])
+
+  const [showCharacterSheet, setShowCharacterSheet] = useState(false)
+
+  const characterEntry: CharacterEntry = useMemo(() => {
+    return {
+      id: typeof node.data?.characterId === 'number' ? node.data.characterId : 0,
+      campaign_id: 0,
+      user_id: 0,
+      name: node.name,
+      avatar_url: (node.data?.avatar_url as string) || null,
+      role: (node.data?.role as 'pc' | 'npc' | 'enemy') || 'pc',
+      sheet_data: (node.data?.sheet_data as Record<string, unknown>) || node.data || {},
+      created_at: '',
+      updated_at: ''
+    }
+  }, [node])
+
+  const handleSaveCharacterSheet = async (updated: CharacterEntry): Promise<void> => {
+    const rawAttrs = (updated.sheet_data as { attributes?: Record<string, unknown> })?.attributes || {}
+    const hpCur = Number(rawAttrs.hp_current ?? rawAttrs.hp ?? 20)
+    const hpMaxVal = Number(rawAttrs.hp_max ?? 20)
+    const acVal = Number(rawAttrs.armor_class ?? rawAttrs.ac ?? 10)
+
+    await onUpdate({
+      id: node.id,
+      name: updated.name,
+      data: {
+        ...node.data,
+        role: updated.role,
+        sheet_data: updated.sheet_data,
+        hp: { current: hpCur, max: hpMaxVal },
+        ac: acVal
+      }
+    })
+  }
 
   // Estatísticas da nota Markdown
   const stats = useMemo((): { words: number; chars: number; lines: number; readTimeMinutes: number } => {
@@ -639,6 +683,17 @@ function NodeViewerDialog({
                   {String(node.data?.role || 'Personagem')}
                 </span>
               </div>
+
+              {/* Botão de Destaque: Abrir Ficha Completa Híbrida */}
+              <button
+                type='button'
+                onClick={() => setShowCharacterSheet(true)}
+                className='flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-vtt-golden text-neutral-950 hover:bg-[#FBE8A6] font-bold text-xs uppercase tracking-wider transition-all cursor-pointer shadow-lg hover:shadow-vtt-golden/20'
+              >
+                <Scroll className='w-4 h-4' />
+                <span>Abrir Ficha de Personagem (Layout PDF + Listas)</span>
+              </button>
+
               <div className='flex gap-6 text-xs bg-neutral-900/60 p-3.5 rounded-xl border border-vtt-light-gray/20'>
                 <div>
                   <span className='text-neutral-400'>Pontos de Vida (HP):</span>{' '}
@@ -737,6 +792,19 @@ function NodeViewerDialog({
           </div>
         </div>
       </div>
+
+      {/* Modal da Ficha de Personagem Híbrida (PDF + Listas Dinâmicas) */}
+      {showCharacterSheet && (
+        <CharacterSheetModal
+          character={characterEntry}
+          system={system || null}
+          isGM={isGM}
+          canEdit={canEdit}
+          onClose={() => setShowCharacterSheet(false)}
+          onSave={handleSaveCharacterSheet}
+          onRoll={onRoll}
+        />
+      )}
     </div>
   )
 }

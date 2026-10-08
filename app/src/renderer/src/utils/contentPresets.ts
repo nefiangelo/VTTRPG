@@ -101,3 +101,10 @@ export function getContentFieldsForType(
 
   return DEFAULT_CONTENT_FIELDS[type] ?? []
 }
+
+export const DEFAULT_MODULAR_SECTIONS: import('../../../preload/index.d').ModularSectionConfig[] = [
+  { id: 'inventory', title: 'Inventário & Itens', contentType: 'item', enabled: true },
+  { id: 'spells', title: 'Grimório de Magias', contentType: 'spell', enabled: true },
+  { id: 'features', title: 'Habilidades & Talentos', contentType: 'feat', enabled: true },
+  { id: 'notes', title: 'Biografia & Anotações', enabled: true }
+]

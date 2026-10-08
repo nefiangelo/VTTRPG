@@ -7,7 +7,8 @@ import type {
   CreateCampaignNodePayload,
   PersistentParticipant,
   NodeVisibility,
-  NodePermission
+  NodePermission,
+  RpgSystemFull
 } from '../../../../preload/index.d'
 import type { LibraryClient } from '../../services/libraryClient'
 import type { LogEntry } from './LogsTab'
@@ -32,7 +33,7 @@ interface SessionSidebarProps {
   isPlayerMode: boolean
   session: Session | null
   campaign: CampaignWithDetails | null
-  system: unknown
+  system: RpgSystemFull | null
   participants: ConnectedParticipant[]
   isConnected: boolean
   connectionStatus: string
@@ -308,6 +309,8 @@ export default function SessionSidebar({
               onDeleteNode={handleDeleteNode}
               onMoveNode={handleMoveNode}
               onShowToTable={onShowToTable}
+              system={system}
+              onRoll={(formula) => onRoll(formula)}
             />
           )}
 

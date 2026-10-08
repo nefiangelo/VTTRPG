@@ -12,8 +12,10 @@ import type {
   ContentType,
   CreateRpgSystemPayload,
   UpdateRpgSystemPayload,
+  SheetLayoutConfig,
 } from '../../../preload/index.d'
-import { CONTENT_TYPE_LIST, DEFAULT_CONTENT_FIELDS } from '../utils/contentPresets'
+import { CONTENT_TYPE_LIST, DEFAULT_CONTENT_FIELDS, DEFAULT_MODULAR_SECTIONS } from '../utils/contentPresets'
+import SheetLayoutBuilder from '../components/sheet/SheetLayoutBuilder'
 
 /* ─── Helpers ─────────────────────────────────────────────────── */
 function uid(): string {
@@ -533,7 +535,18 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [contentFields, setContentFields] = useState<Partial<Record<ContentType, AttributeField[]>>>(() => {
     return initial?.structure?.contentFields ?? {}
   })
-  const [activeBuilderTab, setActiveBuilderTab] = useState<'content' | 'character'>('content')
+  const [sheetLayout, setSheetLayout] = useState<SheetLayoutConfig>(() => {
+    return (
+      initial?.structure?.sheetLayout ?? {
+        type: 'hybrid',
+        pages: [],
+        pins: [],
+        modularSections: DEFAULT_MODULAR_SECTIONS,
+      }
+    )
+  })
+  const [activeBuilderTab, setActiveBuilderTab] = useState<'content' | 'character' | 'sheet_layout'>('content')
+  const [isGeneralInfoOpen, setIsGeneralInfoOpen] = useState(true)
   const [selectedContentType, setSelectedContentType] = useState<ContentType>('class')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -763,6 +776,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
       ...(initial?.structure ?? {}),
       attributeGroups: groups,
       contentFields,
+      sheetLayout,
     }
 
     if (initial) {
@@ -834,11 +848,13 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-3xl max-h-[90vh] overflow-y-auto bg-vtt-dark border border-vtt-dark-gray
-                   rounded-2xl flex flex-col shadow-2xl"
+        className={`w-full ${
+          activeBuilderTab === 'sheet_layout' ? 'max-w-7xl' : 'max-w-4xl'
+        } h-[92vh] max-h-[94vh] bg-vtt-dark border border-vtt-dark-gray
+                   rounded-2xl flex flex-col shadow-2xl overflow-hidden transition-all duration-300`}
       >
         {/* Header do Modal */}
-        <div className="flex items-center justify-between px-8 py-5 border-b border-vtt-dark-gray shrink-0 bg-vtt-dark sticky top-0 z-10">
+        <div className="flex items-center justify-between px-8 py-4 border-b border-vtt-dark-gray shrink-0 bg-vtt-dark z-20">
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-bold text-vtt-golden">
               {isReadOnly ? 'Visualizar Sistema RPG (Somente Leitura)' : initial ? 'Editar Sistema RPG' : 'Novo Sistema RPG'}
@@ -854,7 +870,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
         </div>
 
         {/* Corpo do Formulário */}
-        <div className="flex flex-col gap-8 p-8">
+        <div className="flex-1 overflow-y-auto flex flex-col gap-6 p-6 sm:p-8 [scrollbar-color:#3a3a3a_transparent] scrollbar-thin">
           {isReadOnly && (
             <div className="p-4 rounded-xl bg-blue-950/40 border border-blue-700/50 flex items-center gap-3">
               <span className="text-xl">ℹ️</span>
@@ -871,53 +887,68 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
             <div className="bg-red-950/60 border border-red-700/50 text-red-400 text-sm rounded-lg px-4 py-3">{error}</div>
           )}
 
-          <fieldset disabled={isReadOnly} className="flex flex-col gap-8">
+          <fieldset disabled={isReadOnly} className="flex flex-col gap-6">
             {/* SESSÃO 1: INFORMAÇÕES GERAIS */}
-            <section className="flex flex-col gap-5 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
-              <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
-                <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
-                  <IconInfo />
-                </span>
-                <div>
-                  <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Informações Gerais</h3>
+            <section className="flex flex-col gap-4 bg-[#222222] p-5 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
+              <div
+                className="flex items-center justify-between cursor-pointer select-none border-b border-vtt-dark-gray/60 pb-2"
+                onClick={() => setIsGeneralInfoOpen(!isGeneralInfoOpen)}
+              >
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
+                    <IconInfo />
+                  </span>
+                  <div>
+                    <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Informações Gerais</h3>
+                  </div>
                 </div>
+                <button
+                  type="button"
+                  className="text-xs text-neutral-400 hover:text-vtt-golden transition-colors font-medium cursor-pointer"
+                >
+                  {isGeneralInfoOpen ? '▲ Recolher' : '▼ Expandir'}
+                </button>
               </div>
 
-              <div className="flex gap-4">
-                <label className="flex-[2] flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
-                  <input type="text" value={name} onChange={e => setName(e.target.value)} required
-                    placeholder="ex: D&D 5e"
-                    className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
-                </label>
-                <label className="flex-1 flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
-                  <input type="text" value={version} onChange={e => setVersion(e.target.value)}
-                    placeholder="ex: 5.1"
-                    className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
-                </label>
-              </div>
+              {isGeneralInfoOpen && (
+                <>
+                  <div className="flex gap-4">
+                    <label className="flex-[2] flex flex-col gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
+                      <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                        placeholder="ex: D&D 5e"
+                        className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                                 py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+                    </label>
+                    <label className="flex-1 flex flex-col gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
+                      <input type="text" value={version} onChange={e => setVersion(e.target.value)}
+                        placeholder="ex: 5.1"
+                        className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                                 py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+                    </label>
+                  </div>
 
-              <div className="flex gap-4">
-                <label className="flex-1 flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
-                  <select value={genre} onChange={e => setGenre(e.target.value)}
-                    className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
-                             text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
-                    <option value="">Selecionar...</option>
-                    {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </label>
-                <label className="flex-[2] flex flex-col gap-1.5">
-                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
-                  <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-                    placeholder="Breve descrição do sistema..."
-                    className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
-                </label>
-              </div>
+                  <div className="flex gap-4">
+                    <label className="flex-1 flex flex-col gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
+                      <select value={genre} onChange={e => setGenre(e.target.value)}
+                        className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
+                                 text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
+                        <option value="">Selecionar...</option>
+                        {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                      </select>
+                    </label>
+                    <label className="flex-[2] flex flex-col gap-1.5">
+                      <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
+                      <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+                        placeholder="Breve descrição do sistema..."
+                        className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                                 py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+                    </label>
+                  </div>
+                </>
+              )}
             </section>
 
             {/* SESSÃO 2: ESTRUTURA DO SISTEMA (ABAS) */}
@@ -962,6 +993,20 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
                       <span>Ficha de Personagem</span>
                       <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
                         {groups.length}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBuilderTab('sheet_layout')}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'sheet_layout'
+                        ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
+                        : 'text-neutral-500 hover:text-vtt-light'
+                        }`}
+                    >
+                      <IconScroll />
+                      <span>Layout Visual da Ficha (PDF)</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                        {(sheetLayout.pins || []).length}
                       </span>
                     </button>
                   </div>
@@ -1124,6 +1169,17 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
                     ))}
                   </div>
                 )}
+
+                {/* TAB: CHARACTER SHEET PDF LAYOUT BUILDER */}
+                {activeBuilderTab === 'sheet_layout' && (
+                  <div className="mt-2">
+                    <SheetLayoutBuilder
+                      sheetLayout={sheetLayout}
+                      attributeGroups={groups}
+                      onChangeLayout={setSheetLayout}
+                    />
+                  </div>
+                )}
               </div>
             </section>
           </fieldset>
@@ -1184,7 +1240,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
         </div>
 
         {/* Footer com Botões */}
-        <div className="flex gap-3 px-8 py-5 border-t border-vtt-dark-gray shrink-0 bg-vtt-dark sticky bottom-0 z-10 rounded-b-2xl">
+        <div className="flex gap-3 px-8 py-4 border-t border-vtt-dark-gray shrink-0 bg-vtt-dark z-20 rounded-b-2xl">
           {isReadOnly ? (
             <button
               type="button"

@@ -5,7 +5,8 @@ import type {
   CreateCampaignNodePayload,
   PersistentParticipant,
   NodeVisibility,
-  NodePermission
+  NodePermission,
+  RpgSystemFull
 } from '../../../../preload/index.d'
 import CreateNodeModal from './CreateNodeModal'
 import NodeViewerModal from './NodeViewerModal'
@@ -31,6 +32,7 @@ interface ExplorerTabProps {
   participants: PersistentParticipant[]
   isGM: boolean
   isLoading: boolean
+  system?: RpgSystemFull | null
   onRefresh: () => void
   onCreateNode: (payload: CreateCampaignNodePayload) => Promise<void>
   onUpdateNode: (payload: { id: string; name?: string; description?: string | null; data?: Record<string, unknown> }) => Promise<void>
@@ -38,6 +40,7 @@ interface ExplorerTabProps {
   onSetNodeAccess: (id: string, visibility: NodeVisibility, sharedWith: string[], permission: NodePermission) => Promise<void>
   onDeleteNode: (id: string) => Promise<void>
   onShowToTable?: (node: CampaignNode) => void
+  onRoll?: (formula: string, label: string) => void
 }
 
 type DropPosition = 'before' | 'inside' | 'after'
@@ -68,13 +71,15 @@ export default function ExplorerTab({
   participants,
   isGM,
   isLoading,
+  system,
   onRefresh,
   onCreateNode,
   onUpdateNode,
   onMoveNode,
   onSetNodeAccess,
   onDeleteNode,
-  onShowToTable
+  onShowToTable,
+  onRoll
 }: ExplorerTabProps): React.JSX.Element {
   const [searchTerm, setSearchTerm] = useState<string>('')
   const [filterType, setFilterType] = useState<'all' | 'folders' | 'characters' | 'notes' | 'images'>('all')
@@ -748,6 +753,8 @@ export default function ExplorerTab({
           setSelectedNode(null)
         }}
         isGM={isGM}
+        system={system}
+        onRoll={onRoll}
         onUpdate={onUpdateNode}
         onDelete={onDeleteNode}
         onShowToTable={onShowToTable}

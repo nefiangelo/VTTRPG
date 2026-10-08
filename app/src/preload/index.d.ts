@@ -140,9 +140,58 @@ export interface AttributeGroup {
   fields: AttributeField[]
 }
 
+export interface SheetLayoutPin {
+  id: string
+  key: string
+  label: string
+  type: 'number' | 'text' | 'checkbox' | 'textarea'
+  page: number
+  x: number // porcentagem 0 a 100
+  y: number // porcentagem 0 a 100
+  w: number // porcentagem 0 a 100
+  h: number // porcentagem 0 a 100
+  fontSize?: number
+  textAlign?: 'left' | 'center' | 'right'
+  isModifier?: boolean
+  formula?: string
+}
+
+export interface ModularSectionConfig {
+  id: string
+  title: string
+  contentType?: ContentType
+  enabled: boolean
+}
+
+export interface SheetLayoutConfig {
+  type: 'hybrid' | 'modular'
+  pages: string[] // Data URLs ou caminhos das imagens das páginas
+  pins: SheetLayoutPin[]
+  modularSections: ModularSectionConfig[]
+}
+
+export interface DynamicListItem {
+  id: string
+  name: string
+  description?: string
+  quantity?: number
+  weight?: number
+  equipped?: boolean
+  level?: number
+  data?: Record<string, unknown>
+}
+
+export interface CharacterSheetData {
+  attributes: Record<string, string | number | boolean>
+  lists: Record<string, DynamicListItem[]>
+  notes?: string
+  [key: string]: unknown
+}
+
 export interface SystemStructure {
   attributeGroups?: AttributeGroup[]
   contentFields?: Partial<Record<ContentType, AttributeField[]>>
+  sheetLayout?: SheetLayoutConfig
   [key: string]: unknown
 }
 
