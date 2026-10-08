@@ -4,9 +4,21 @@ import express from 'express'
 import cors from 'cors'
 import { Server as SocketIOServer, Socket } from 'socket.io'
 import { getDb } from './db'
-import { getSessionById, getSessionsByCampaign, setSessionAccessCode } from './session'
+import {
+  getSessionById,
+  getSessionsByCampaign,
+  setSessionAccessCode,
+  recordSessionParticipant,
+  getSessionParticipants
+} from './session'
 import { getCampaignById, getCampaignMembers } from './campaign'
 import { getRpgSystemById, getSystemContent } from './rpg_system'
+import {
+  getCampaignNodes,
+  createCampaignNode,
+  updateCampaignNode,
+  deleteCampaignNode
+} from './campaign_nodes'
 
 export interface ConnectedParticipant {
   socketId: string
@@ -99,6 +111,20 @@ export function getSessionServerStatus(): SessionServerStatus {
     participantsCount: participantsMap.size,
     participants: Array.from(participantsMap.values())
   }
+}
+
+/**
+ * Notifica todos os clientes conectados de que a biblioteca de conteúdos da campanha foi atualizada
+ */
+export function broadcastLibraryUpdate(campaignId?: number): void {
+  if (!activeIo || !activeSessionId) return
+  const targetCampId = campaignId || activeCampaignId
+  if (!targetCampId) return
+
+  activeIo.to(`session_${activeSessionId}`).emit('session:library_updated', {
+    campaignId: targetCampId,
+    timestamp: new Date().toISOString()
+  })
 }
 
 export interface SyncCheckPayload {
@@ -428,27 +454,18 @@ export async function startSessionServer(
     const allSessions = getSessionsByCampaign(campaign.id)
     const members = getCampaignMembers(campaign.id)
 
-    // Opcional: Se veio nome de usuário do jogador na requisição, registra na campanha local do host
+    // Se veio nome de usuário do jogador na requisição, registra persistentemente na sessão e campanha do host
     const joinUsername = String(req.query.username || req.headers['x-player-username'] || '').trim()
-    if (joinUsername && activeCampaignId) {
+    if (joinUsername && activeCampaignId && activeSessionId) {
       try {
-        const db = getDb()
-        let memberUser = db
-          .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE')
-          .get(joinUsername) as { id: number } | undefined
-        if (!memberUser) {
-          const res = db
-            .prepare(`INSERT INTO users (username, password, created_at) VALUES (?, 'network_player', datetime('now'))`)
-            .run(joinUsername)
-          memberUser = { id: Number(res.lastInsertRowid) }
-        }
-        db.prepare(`
-          INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
-          VALUES (?, ?, 'player', datetime('now'))
-          ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = role
-        `).run(activeCampaignId, memberUser.id)
+        recordSessionParticipant({
+          sessionId: activeSessionId,
+          campaignId: activeCampaignId,
+          username: joinUsername,
+          role: 'player'
+        })
       } catch (err) {
-        console.error('Erro ao registrar membro no host via HTTP:', err)
+        console.error('Erro ao registrar participante no host via HTTP:', err)
       }
     }
 
@@ -500,12 +517,78 @@ export async function startSessionServer(
         : null,
       content: content,
       characters: campaignCharacters,
+      nodes: getCampaignNodes(campaign.id, false, joinUsername),
+      persistentParticipants: getSessionParticipants(activeSessionId || undefined, campaign.id),
       stats: {
         totalContentItems: content.length,
         attributeGroupsCount: system?.structure?.attributeGroups?.length || 0
       },
       serverTime: new Date().toISOString()
     })
+  })
+
+  // Lista de Participantes Persistentes da Sessão e Campanha
+  app.get('/api/session/participants', (req, res) => {
+    const queryCode = String(req.query.code || req.headers['x-session-code'] || '').trim().toUpperCase()
+    if (!queryCode || queryCode !== activeCode) {
+      return res.status(403).json({ success: false, error: 'Código de sessão inválido.' })
+    }
+    const participants = getSessionParticipants(activeSessionId || undefined, activeCampaignId || undefined)
+    return res.json({ success: true, participants })
+  })
+
+  // Biblioteca de Conteúdo da Campanha (Pastas e Arquivos)
+  app.get('/api/session/nodes', (req, res) => {
+    const queryCode = String(req.query.code || req.headers['x-session-code'] || '').trim().toUpperCase()
+    if (!queryCode || queryCode !== activeCode) {
+      return res.status(403).json({ success: false, error: 'Código de sessão inválido.' })
+    }
+    const username = String(req.query.username || req.headers['x-player-username'] || '').trim()
+    const isGM = req.query.role === 'gm' || req.headers['x-role'] === 'gm'
+    const nodes = getCampaignNodes(activeCampaignId!, isGM, username)
+    return res.json({ success: true, nodes })
+  })
+
+  app.post('/api/session/nodes', (req, res) => {
+    const queryCode = String(req.query.code || req.headers['x-session-code'] || '').trim().toUpperCase()
+    if (!queryCode || queryCode !== activeCode) {
+      return res.status(403).json({ success: false, error: 'Código de sessão inválido.' })
+    }
+    const result = createCampaignNode({
+      ...req.body,
+      campaign_id: activeCampaignId!
+    })
+    if (result.success) {
+      broadcastLibraryUpdate(activeCampaignId!)
+    }
+    return res.status(result.success ? 200 : 400).json(result)
+  })
+
+  app.patch('/api/session/nodes/:id', (req, res) => {
+    const queryCode = String(req.query.code || req.headers['x-session-code'] || '').trim().toUpperCase()
+    if (!queryCode || queryCode !== activeCode) {
+      return res.status(403).json({ success: false, error: 'Código de sessão inválido.' })
+    }
+    const result = updateCampaignNode({
+      ...req.body,
+      id: req.params.id
+    })
+    if (result.success) {
+      broadcastLibraryUpdate(activeCampaignId!)
+    }
+    return res.status(result.success ? 200 : 400).json(result)
+  })
+
+  app.delete('/api/session/nodes/:id', (req, res) => {
+    const queryCode = String(req.query.code || req.headers['x-session-code'] || '').trim().toUpperCase()
+    if (!queryCode || queryCode !== activeCode) {
+      return res.status(403).json({ success: false, error: 'Código de sessão inválido.' })
+    }
+    const result = deleteCampaignNode(req.params.id)
+    if (result.success) {
+      broadcastLibraryUpdate(activeCampaignId!)
+    }
+    return res.status(result.success ? 200 : 400).json(result)
   })
 
   // Checagem e Sincronização de Dados Obsoletos (HTTP)
@@ -559,24 +642,18 @@ export async function startSessionServer(
         participantsMap.set(socket.id, participant)
         socket.join(`session_${activeSessionId}`)
 
-        // Se o participante for jogador, registra-o na tabela de membros da campanha no host
-        if (activeCampaignId && user?.username) {
+        // Registra o participante persistentemente no banco de dados da sessão e da campanha
+        if (activeCampaignId && activeSessionId && user?.username) {
           try {
-            const db = getDb()
-            let memberUser = db
-              .prepare('SELECT id FROM users WHERE username = ? COLLATE NOCASE')
-              .get(user.username.trim()) as { id: number } | undefined
-            if (!memberUser) {
-              const res = db
-                .prepare(`INSERT INTO users (username, password, created_at) VALUES (?, 'network_player', datetime('now'))`)
-                .run(user.username.trim())
-              memberUser = { id: Number(res.lastInsertRowid) }
-            }
-            db.prepare(`
-              INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
-              VALUES (?, ?, ?, datetime('now'))
-              ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = role
-            `).run(activeCampaignId, memberUser.id, user.role || 'player')
+            recordSessionParticipant({
+              sessionId: activeSessionId,
+              campaignId: activeCampaignId,
+              username: user.username.trim(),
+              role: user.role || 'player'
+            })
+            io.to(`session_${activeSessionId}`).emit('session:persistent_participants_updated', {
+              participants: getSessionParticipants(activeSessionId, activeCampaignId)
+            })
           } catch (err) {
             console.error('Erro ao registrar participante no host via socket:', err)
           }
@@ -712,6 +789,24 @@ export async function startSessionServer(
       }
 
       io.to(`session_${activeSessionId}`).emit('session:chat_received', eventData)
+    })
+
+    // Apresentar Handout/Imagem/Nota na mesa para todos os participantes
+    socket.on('session:show_handout', (payload: { nodeId?: string; type: string; title: string; data: Record<string, unknown> }) => {
+      const participant = participantsMap.get(socket.id)
+      io.to(`session_${activeSessionId}`).emit('session:handout_shown', {
+        id: `handout_${Date.now()}`,
+        by: participant?.username || 'Mestre',
+        ...payload,
+        timestamp: new Date().toISOString()
+      })
+    })
+
+    // Solicitar reload da biblioteca
+    socket.on('session:library_reload', () => {
+      if (activeCampaignId) {
+        broadcastLibraryUpdate(activeCampaignId)
+      }
     })
 
     // Desconexão

@@ -217,6 +217,61 @@ function runMigrations(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_session_messages_session ON session_messages(session_id);
   `)
+
+  // ── Campaign Nodes (Pastas, Arquivos, Fichas, Notas, Imagens, etc.) ────────
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS campaign_nodes (
+      id            TEXT    PRIMARY KEY,
+      campaign_id   INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      parent_id     TEXT    REFERENCES campaign_nodes(id) ON DELETE CASCADE,
+      type          TEXT    NOT NULL
+                            CHECK (type IN ('folder', 'character', 'note', 'image', 'audio', 'map')),
+      name          TEXT    NOT NULL,
+      description   TEXT,
+      visibility    TEXT    NOT NULL DEFAULT 'gm_only'
+                            CHECK (visibility IN ('gm_only', 'all', 'custom')),
+      permission    TEXT    NOT NULL DEFAULT 'view'
+                            CHECK (permission IN ('view', 'edit')),
+      shared_with   TEXT    NOT NULL DEFAULT '[]',
+      data          TEXT    NOT NULL DEFAULT '{}',
+      order_index   INTEGER NOT NULL DEFAULT 0,
+      created_at    TEXT    NOT NULL DEFAULT (datetime('now')),
+      updated_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_campaign_nodes_campaign ON campaign_nodes(campaign_id);
+    CREATE INDEX IF NOT EXISTS idx_campaign_nodes_parent   ON campaign_nodes(parent_id);
+    CREATE INDEX IF NOT EXISTS idx_campaign_nodes_type     ON campaign_nodes(campaign_id, type);
+  `)
+
+  // ── Session Participants (Histórico persistente de participantes) ─────────
+  try {
+    const pCols = db.prepare("PRAGMA table_info(session_participants)").all() as Array<{ name: string }>
+    if (pCols.length > 0 && !pCols.some((c) => c.name === 'campaign_id')) {
+      // Se a tabela session_participants era do esquema legado (sem campaign_id), recria com o esquema atual
+      db.exec(`DROP TABLE IF EXISTS session_participants;`)
+    }
+  } catch (e) {
+    console.error('Erro ao verificar colunas de session_participants:', e)
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_participants (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id    INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      campaign_id   INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      user_id       INTEGER NOT NULL REFERENCES users(id)     ON DELETE CASCADE,
+      username      TEXT    NOT NULL,
+      role          TEXT    NOT NULL DEFAULT 'player'
+                            CHECK (role IN ('gm','player','observer')),
+      first_joined  TEXT    NOT NULL DEFAULT (datetime('now')),
+      last_joined   TEXT    NOT NULL DEFAULT (datetime('now')),
+      UNIQUE (session_id, user_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_session_participants_session  ON session_participants(session_id);
+    CREATE INDEX IF NOT EXISTS idx_session_participants_campaign ON session_participants(campaign_id);
+  `)
 }
 
 export function closeDb(): void {

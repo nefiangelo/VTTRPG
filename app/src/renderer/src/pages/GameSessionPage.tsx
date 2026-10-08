@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { io, Socket } from 'socket.io-client'
 import { useAuth } from '../context/AuthContext'
@@ -6,20 +6,18 @@ import type {
   Session,
   CampaignWithDetails,
   RpgSystemFull,
-  SystemContentEntry,
   ConnectedParticipant,
   SessionBundleResult,
   CharacterEntry,
   SyncCheckPayload,
-  SyncCheckResult
+  SyncCheckResult,
+  CampaignNode,
+  PersistentParticipant
 } from '../../../preload/index.d'
-
-interface LogEntry {
-  id: string
-  time: string
-  type: 'info' | 'success' | 'warn' | 'dice' | 'chat'
-  message: string
-}
+import SessionSidebar from '../components/session/SessionSidebar'
+import VttGridCanvas, { ActiveHandout } from '../components/session/VttGridCanvas'
+import { createLocalLibraryClient, createRemoteLibraryClient, LibraryClient } from '../services/libraryClient'
+import type { LogEntry } from '../components/session/LogsTab'
 
 export default function GameSessionPage(): React.JSX.Element {
   const { id } = useParams<{ id: string }>()
@@ -40,11 +38,16 @@ export default function GameSessionPage(): React.JSX.Element {
   const [isPlayerMode, setIsPlayerMode] = useState<boolean>(!!locationState?.isPlayer)
 
   // Dados da sessão e da campanha
-  const [session, setSession] = useState<Session | null>(locationState?.downloadedBundle?.session as Session || null)
-  const [campaign, setCampaign] = useState<CampaignWithDetails | null>(locationState?.downloadedBundle?.campaign as CampaignWithDetails || null)
-  const [system, setSystem] = useState<RpgSystemFull | null>(locationState?.downloadedBundle?.system || null)
-  const [contentList, setContentList] = useState<SystemContentEntry[]>(locationState?.downloadedBundle?.content || [])
-  const [characters, setCharacters] = useState<CharacterEntry[]>([])
+  const [session, setSession] = useState<Session | null>(
+    (locationState?.downloadedBundle?.session as Session) || null
+  )
+  const [campaign, setCampaign] = useState<CampaignWithDetails | null>(
+    (locationState?.downloadedBundle?.campaign as CampaignWithDetails) || null
+  )
+  const [system, setSystem] = useState<RpgSystemFull | null>(
+    locationState?.downloadedBundle?.system || null
+  )
+  const [_characters, setCharacters] = useState<CharacterEntry[]>([])
 
   // Sincronização entre Jogador e GM
   const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'up-to-date' | 'updated' | 'error'>('idle')
@@ -52,7 +55,9 @@ export default function GameSessionPage(): React.JSX.Element {
 
   // Servidor & Conexão
   const [serverPort, setServerPort] = useState<number>(3001)
-  const [accessCode, setAccessCode] = useState<string>(locationState?.accessCode || locationState?.downloadedBundle?.session?.access_code || '')
+  const [accessCode, setAccessCode] = useState<string>(
+    locationState?.accessCode || locationState?.downloadedBundle?.session?.access_code || ''
+  )
   const [localAddresses, setLocalAddresses] = useState<string[]>([])
   const [serverUrl, setServerUrl] = useState<string>(locationState?.serverUrl || 'http://localhost:3001')
 
@@ -62,11 +67,18 @@ export default function GameSessionPage(): React.JSX.Element {
   const [currentPing, setCurrentPing] = useState<number | null>(null)
   const [participants, setParticipants] = useState<ConnectedParticipant[]>([])
 
-  // Logs e Testes
+  // Logs e Chat
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [chatMessage, setChatMessage] = useState('')
-  const [copiedCodeToast, setCopiedCodeToast] = useState(false)
-  const [copiedLinkToast, setCopiedLinkToast] = useState(false)
+
+  // Apresentação de Handout / Imagem na mesa para todos
+  const [activeHandout, setActiveHandout] = useState<ActiveHandout | null>(null)
+
+  // Versão da biblioteca para re-renderizações acionadas por sockets
+  const [libraryVersion, setLibraryVersion] = useState(0)
+
+  // Participantes persistentes registrados na sessão/campanha
+  const [persistentParticipants, setPersistentParticipants] = useState<PersistentParticipant[]>([])
 
   // Modais de encerramento
   const [showEndModal, setShowEndModal] = useState(false)
@@ -74,7 +86,6 @@ export default function GameSessionPage(): React.JSX.Element {
 
   // Referências para valores atualizados em callbacks assíncronos do socket
   const socketRef = useRef<Socket | null>(null)
-  const logBoxRef = useRef<HTMLDivElement | null>(null)
   const campaignRef = useRef(campaign)
   campaignRef.current = campaign
   const systemRef = useRef(system)
@@ -92,8 +103,8 @@ export default function GameSessionPage(): React.JSX.Element {
       second: '2-digit'
     }).format(new Date())
 
-    setLogs(prev => [
-      ...prev.slice(-100), // Mantém até 100 mensagens
+    setLogs((prev) => [
+      ...prev.slice(-100),
       {
         id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         time,
@@ -103,89 +114,94 @@ export default function GameSessionPage(): React.JSX.Element {
     ])
   }, [])
 
-  // Auto-scroll no console de logs
-  useEffect(() => {
-    if (logBoxRef.current) {
-      logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight
+  // Cliente de Conteúdos da Campanha (Pastas, Fichas, Notas, Imagens)
+  const libraryClient = useMemo<LibraryClient | null>(() => {
+    if (!user) return null
+    if (isPlayerMode) {
+      return accessCode
+        ? createRemoteLibraryClient({ serverUrl, code: accessCode, username: user.username })
+        : null
     }
-  }, [logs])
+    return campaign?.id ? createLocalLibraryClient(campaign.id, user.id, session?.id) : null
+  }, [user, isPlayerMode, accessCode, serverUrl, campaign?.id, session?.id, libraryVersion])
 
   // Função para checar e sincronizar dados com o Mestre
-  const runSyncCheck = useCallback(async (customSocket?: Socket) => {
-    const activeSocket = customSocket || socketRef.current
-    if (!activeSocket || !activeSocket.connected) {
-      addLog('Socket não conectado. Não é possível verificar sincronização no momento.', 'warn')
-      return
-    }
-
-    const curCampaign = campaignRef.current
-    if (!curCampaign) {
-      addLog('Dados locais da campanha ainda não carregados.', 'warn')
-      return
-    }
-
-    setSyncStatus('syncing')
-    addLog('🔍 Verificando integridade e sincronização de dados com o Mestre...', 'info')
-
-    try {
-      const curSystem = systemRef.current
-      const [localChars, localSessions] = await Promise.all([
-        window.api.characters.getByCampaign(curCampaign.id),
-        window.api.sessions.getByCampaign(curCampaign.id)
-      ])
-
-      if (localChars) setCharacters(localChars)
-
-      const payload: SyncCheckPayload = {
-        code: accessCodeRef.current,
-        campaignId: curCampaign.id,
-        campaignUpdatedAt: curCampaign.created_at,
-        systemId: curSystem?.id,
-        systemUpdatedAt: curSystem?.updated_at,
-        sessions: (localSessions || []).map(s => ({
-          id: s.id,
-          updatedAt: s.updated_at || s.created_at,
-          status: s.status,
-          title: s.title || undefined
-        })),
-        characters: (localChars || []).map(c => ({
-          id: c.id,
-          name: c.name,
-          avatar_url: c.avatar_url,
-          role: c.role,
-          sheet_data: c.sheet_data,
-          updated_at: c.updated_at
-        })),
-        userId: user?.id,
-        username: user?.username
+  const runSyncCheck = useCallback(
+    async (customSocket?: Socket) => {
+      const activeSocket = customSocket || socketRef.current
+      if (!activeSocket || !activeSocket.connected) {
+        addLog('Socket não conectado. Não é possível verificar sincronização no momento.', 'warn')
+        return
       }
 
-      activeSocket.emit('session:sync_check', payload)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err)
-      addLog(`Erro ao preparar verificação de sincronização: ${msg}`, 'warn')
-      setSyncStatus('error')
-    }
-  }, [user, addLog])
+      const curCampaign = campaignRef.current
+      if (!curCampaign) {
+        addLog('Dados locais da campanha ainda não carregados.', 'warn')
+        return
+      }
+
+      setSyncStatus('syncing')
+      addLog('🔍 Verificando integridade e sincronização de dados com o Mestre...', 'info')
+
+      try {
+        const curSystem = systemRef.current
+        const [localChars, localSessions] = await Promise.all([
+          window.api.characters.getByCampaign(curCampaign.id),
+          window.api.sessions.getByCampaign(curCampaign.id)
+        ])
+
+        if (localChars) setCharacters(localChars)
+
+        const payload: SyncCheckPayload = {
+          code: accessCodeRef.current,
+          campaignId: curCampaign.id,
+          campaignUpdatedAt: curCampaign.created_at,
+          systemId: curSystem?.id,
+          systemUpdatedAt: curSystem?.updated_at,
+          sessions: (localSessions || []).map((s) => ({
+            id: s.id,
+            updatedAt: s.updated_at || s.created_at,
+            status: s.status,
+            title: s.title || undefined
+          })),
+          characters: (localChars || []).map((c) => ({
+            id: c.id,
+            name: c.name,
+            avatar_url: c.avatar_url,
+            role: c.role,
+            sheet_data: c.sheet_data,
+            updated_at: c.updated_at
+          })),
+          userId: user?.id,
+          username: user?.username
+        }
+
+        activeSocket.emit('session:sync_check', payload)
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        addLog(`Erro ao preparar verificação de sincronização: ${msg}`, 'warn')
+        setSyncStatus('error')
+      }
+    },
+    [user, addLog]
+  )
 
   // Inicialização e Conexão
   useEffect(() => {
     let isCancelled = false
 
     async function initSession() {
-      // CENÁRIO 1: JOGADOR (Veio da tela de Join com o bundle já baixado)
+      // CENÁRIO 1: JOGADOR (Veio da tela de Join com bundle baixado)
       if (locationState?.isPlayer && locationState?.downloadedBundle) {
         setIsPlayerMode(true)
         const bundle = locationState.downloadedBundle
         setSession(bundle.session as Session)
         setCampaign(bundle.campaign as CampaignWithDetails)
         setSystem(bundle.system)
-        setContentList(bundle.content)
         setAccessCode(bundle.session.access_code)
 
-        // Carrega fichas locais da campanha baixada
         if (bundle.campaign?.id) {
-          window.api.characters.getByCampaign(bundle.campaign.id).then(chars => {
+          window.api.characters.getByCampaign(bundle.campaign.id).then((chars) => {
             if (!isCancelled && chars) setCharacters(chars)
           })
         }
@@ -193,7 +209,7 @@ export default function GameSessionPage(): React.JSX.Element {
         const targetUrl = locationState.serverUrl || 'http://localhost:3001'
         setServerUrl(targetUrl)
 
-        addLog(`Conteúdo do sistema "${bundle.system?.name || 'Personalizado'}" carregado com sucesso (${bundle.stats.totalContentItems} itens).`, 'success')
+        addLog(`Conteúdo do sistema "${bundle.system?.name || 'Personalizado'}" carregado com sucesso.`, 'success')
         addLog(`Iniciando conexão Socket.io com ${targetUrl}...`, 'info')
 
         connectSocket(targetUrl, bundle.session.access_code, 'player')
@@ -224,7 +240,6 @@ export default function GameSessionPage(): React.JSX.Element {
         if (campaignData) {
           setCampaign(campaignData)
 
-          // Carrega fichas vinculadas à campanha
           const chars = await window.api.characters.getByCampaign(campaignData.id)
           if (!isCancelled && chars) setCharacters(chars)
 
@@ -232,8 +247,6 @@ export default function GameSessionPage(): React.JSX.Element {
             const systemData = await window.api.systems.getById(campaignData.rpg_system_id)
             if (systemData) {
               setSystem(systemData)
-              const contentData = await window.api.content.getBySystem(systemData.id)
-              setContentList(contentData || [])
             }
           }
         }
@@ -282,6 +295,28 @@ export default function GameSessionPage(): React.JSX.Element {
         addLog(`✓ Código de Acesso gerado: ${startResult.accessCode}`, 'success')
         addLog(`Conectando Mestre ao canal de tempo real local...`, 'info')
 
+        if (user?.username && sessionId && campaignData?.id) {
+          try {
+            await window.api.sessions.recordParticipant({
+              sessionId,
+              campaignId: campaignData.id,
+              username: user.username,
+              role: 'gm'
+            })
+          } catch (e) {
+            console.error('Erro ao registrar GM persistentemente:', e)
+          }
+        }
+
+        try {
+          const parts = await window.api.sessions.getParticipants(sessionId, campaignData?.id)
+          if (!isCancelled && parts) {
+            setPersistentParticipants(parts)
+          }
+        } catch (e) {
+          console.error('Erro ao carregar participantes persistentes:', e)
+        }
+
         connectSocket(hostUrl, startResult.accessCode, 'gm')
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err)
@@ -299,7 +334,7 @@ export default function GameSessionPage(): React.JSX.Element {
         socketRef.current = null
       }
     }
-  }, [sessionId, locationState, addLog])
+  }, [sessionId, locationState, addLog, navigate, user])
 
   // Estabelece a conexão Socket.io com os handlers de eventos
   const connectSocket = (url: string, code: string, role: 'gm' | 'player') => {
@@ -322,7 +357,6 @@ export default function GameSessionPage(): React.JSX.Element {
       setConnectionStatus('connected')
       addLog(`✓ Conexão WebSocket estabelecida com sucesso! ID: ${socket.id}`, 'success')
 
-      // Emite evento de entrada com validação do código
       socket.emit('session:join', {
         code,
         user: {
@@ -333,19 +367,20 @@ export default function GameSessionPage(): React.JSX.Element {
       })
     })
 
-    socket.on('session:joined', (data: { participant: ConnectedParticipant; participants: ConnectedParticipant[] }) => {
-      addLog(`Registrado na sala da sessão como [${role.toUpperCase()}].`, 'success')
-      setParticipants(data.participants || [])
+    socket.on(
+      'session:joined',
+      (data: { participant: ConnectedParticipant; participants: ConnectedParticipant[] }) => {
+        addLog(`Registrado na sala da sessão como [${role.toUpperCase()}].`, 'success')
+        setParticipants(data.participants || [])
 
-      // Se for jogador, executa checagem de sincronização automática com o Mestre
-      if (role === 'player') {
-        setTimeout(() => {
-          runSyncCheck(socket)
-        }, 600)
+        if (role === 'player') {
+          setTimeout(() => {
+            runSyncCheck(socket)
+          }, 600)
+        }
       }
-    })
+    )
 
-    // Resposta de sincronização recebida do Mestre
     socket.on('session:sync_result', async (data: SyncCheckResult) => {
       const now = new Intl.DateTimeFormat('pt-BR', {
         hour: '2-digit',
@@ -370,36 +405,34 @@ export default function GameSessionPage(): React.JSX.Element {
 
       try {
         const targetCampaignId = campaignRef.current?.id || session?.campaign_id || 0
-        const applyRes = await window.api.sessions.applySyncUpdate({
-          campaignId: targetCampaignId,
-          ...data.updatedData
-        }, user?.id)
+        const applyRes = await window.api.sessions.applySyncUpdate(
+          {
+            campaignId: targetCampaignId,
+            ...data.updatedData
+          },
+          user?.id
+        )
         if (!applyRes.success) {
           addLog(`⚠️ Falha ao salvar dados sincronizados no banco local: ${applyRes.error}`, 'warn')
           setSyncStatus('error')
           return
         }
 
-        // Atualiza estados locais do React
         if (data.updatedData.campaign) {
-          setCampaign(prev => prev ? ({ ...prev, ...data.updatedData.campaign }) : (data.updatedData.campaign as CampaignWithDetails))
+          setCampaign((prev) =>
+            prev ? { ...prev, ...data.updatedData.campaign } : (data.updatedData.campaign as CampaignWithDetails)
+          )
         }
         if (data.updatedData.system) {
           setSystem(data.updatedData.system)
         }
-        if (data.updatedData.content) {
-          setContentList(data.updatedData.content)
-        }
         if (data.updatedData.sessions && data.updatedData.sessions.length > 0) {
-          const active = data.updatedData.sessions.find(s => s.id === sessionRef.current?.id) || data.updatedData.sessions[0]
+          const active =
+            data.updatedData.sessions.find((s) => s.id === sessionRef.current?.id) || data.updatedData.sessions[0]
           if (active) setSession(active)
         }
         if (data.updatedData.characters) {
           setCharacters(data.updatedData.characters)
-        }
-
-        if (data.playerCharactersAccepted > 0) {
-          addLog(`✓ ${data.playerCharactersAccepted} ficha(s) alterada(s) offline foram salvas pelo Mestre!`, 'success')
         }
 
         addLog(`✓ Sincronização concluída com sucesso! Atualizados: ${data.obsoleteElements.join(', ')}`, 'success')
@@ -411,7 +444,14 @@ export default function GameSessionPage(): React.JSX.Element {
       }
     })
 
-    socket.on('session:participants_changed', (data: {
+    socket.on('session:persistent_participants_updated', (data: { participants: PersistentParticipant[] }) => {
+      if (data?.participants) {
+        setPersistentParticipants(data.participants)
+        addLog('Lista de participantes persistentes atualizada.', 'info')
+      }
+    })
+
+    socket.on('session:participants_changed', async (data: {
       event: 'join' | 'leave' | 'ping'
       participant: ConnectedParticipant
       participants: ConnectedParticipant[]
@@ -421,6 +461,19 @@ export default function GameSessionPage(): React.JSX.Element {
       if (data.event === 'join') {
         const roleLabel = data.participant.role === 'gm' ? '👑 Mestre' : '🛡️ Jogador'
         addLog(`${roleLabel} "${data.participant.username}" entrou na sala.`, 'info')
+
+        try {
+          const targetSessionId = sessionRef.current?.id || sessionId
+          const targetCampaignId = campaignRef.current?.id
+          if (targetSessionId && targetCampaignId && window.api?.sessions?.getParticipants) {
+            const parts = await window.api.sessions.getParticipants(targetSessionId, targetCampaignId)
+            if (parts && parts.length > 0) {
+              setPersistentParticipants(parts)
+            }
+          }
+        } catch {
+          // ignora caso não seja host local
+        }
       } else if (data.event === 'leave') {
         addLog(`Participante "${data.participant.username}" desconectou da sala.`, 'warn')
       }
@@ -447,6 +500,18 @@ export default function GameSessionPage(): React.JSX.Element {
       addLog(`💬 ${data.user.username}: ${data.text}`, 'chat')
     })
 
+    // Apresentação de Handout na Mesa
+    socket.on('session:handout_shown', (data: ActiveHandout) => {
+      setActiveHandout(data)
+      addLog(`📢 ${data.by} apresentou na mesa: "${data.title}"`, 'info')
+    })
+
+    // Atualização em Tempo Real da Biblioteca de Conteúdo (Pastas/Arquivos)
+    socket.on('session:library_updated', () => {
+      setLibraryVersion((v) => v + 1)
+      addLog('📁 Biblioteca da campanha atualizada em tempo real.', 'info')
+    })
+
     const handleSessionEndedOrClosed = async (data: {
       sessionId?: number
       campaignId?: number
@@ -461,7 +526,6 @@ export default function GameSessionPage(): React.JSX.Element {
 
       addLog(`⚠️ Sessão encerrada: ${data?.message || 'O Mestre encerrou a sessão de jogo.'}`, 'warn')
 
-      // Atualiza o SQLite local do jogador usando applySyncUpdate para persistir 'completed'
       if (targetCampaignId && targetSessionId) {
         try {
           await window.api.sessions.applySyncUpdate(
@@ -515,7 +579,7 @@ export default function GameSessionPage(): React.JSX.Element {
     })
   }
 
-  // Ações de Teste em Tempo Real
+  // Ações em Tempo Real
   const handleTestPing = () => {
     if (!socketRef.current || !isConnected) return
     addLog('Enviando Ping para medição de latência...', 'info')
@@ -536,6 +600,15 @@ export default function GameSessionPage(): React.JSX.Element {
       result = Math.floor(Math.random() * 100) + 1
     } else if (formula === '1d8') {
       result = Math.floor(Math.random() * 8) + 1
+    } else if (formula === '1d4') {
+      result = Math.floor(Math.random() * 4) + 1
+    } else if (formula === '1d10') {
+      result = Math.floor(Math.random() * 10) + 1
+    } else if (formula === '1d12') {
+      result = Math.floor(Math.random() * 12) + 1
+    } else {
+      // Fórmula genérica simples
+      result = Math.floor(Math.random() * 20) + 1
     }
 
     socketRef.current.emit('session:dice', { formula, result })
@@ -552,21 +625,20 @@ export default function GameSessionPage(): React.JSX.Element {
     setChatMessage('')
   }
 
-  // Copiar código de acesso para a área de transferência
-  const handleCopyCode = () => {
-    if (!accessCode) return
-    navigator.clipboard.writeText(accessCode)
-    setCopiedCodeToast(true)
-    setTimeout(() => setCopiedCodeToast(false), 2500)
+  const handleShowToTable = (node: CampaignNode) => {
+    if (!socketRef.current || !isConnected) return
+    socketRef.current.emit('session:show_handout', {
+      nodeId: node.id,
+      type: node.type,
+      title: node.name,
+      data: node.data
+    })
   }
 
-  // Copiar link / formato de compartilhamento completo
-  const handleCopyFullLink = () => {
-    const primaryIp = localAddresses.find(ip => ip !== '127.0.0.1') || 'localhost'
-    const fullString = `${primaryIp}:${serverPort}#${accessCode}`
-    navigator.clipboard.writeText(fullString)
-    setCopiedLinkToast(true)
-    setTimeout(() => setCopiedLinkToast(false), 2500)
+  const handleLibraryChanged = () => {
+    if (socketRef.current && isConnected) {
+      socketRef.current.emit('session:library_reload')
+    }
   }
 
   // Mestre encerra a sessão
@@ -598,7 +670,7 @@ export default function GameSessionPage(): React.JSX.Element {
     }
   }
 
-  // Jogador marca sessão como encerrada localmente se o servidor do Mestre estiver offline
+  // Jogador marca sessão como encerrada localmente
   const handlePlayerMarkSessionEnded = async () => {
     const targetCampaignId = campaign?.id || session?.campaign_id
     const targetSessionId = session?.id
@@ -641,561 +713,57 @@ export default function GameSessionPage(): React.JSX.Element {
     }
   }
 
-  // Contagem de conteúdo por tipo
-  const contentByType = contentList.reduce((acc, item) => {
-    acc[item.type] = (acc[item.type] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
-
   return (
-    <div className='flex flex-col h-screen overflow-hidden bg-vtt-dark-gray text-vtt-light'>
-      {/* ── TOP NAVIGATION BAR ──────────────────────────────────────────────── */}
-      <header className='h-16 bg-vtt-dark border-b border-vtt-light-gray/40 px-6 flex items-center justify-between shrink-0 shadow-md'>
-        {/* Lado Esquerdo: Voltar & Título */}
-        <div className='flex items-center gap-4'>
-          <button
-            type='button'
-            onClick={handleLeaveSession}
-            className='text-neutral-400 hover:text-white text-xs font-semibold px-3 py-1.5 rounded-lg bg-vtt-dark-gray border border-vtt-light-gray/40 transition-colors cursor-pointer'
-          >
-            « Sair da Sala
-          </button>
+    <div className='flex flex-row h-screen overflow-hidden bg-vtt-dark text-vtt-light font-sans'>
+      {/* ── BARRA LATERAL COM ABAS E EXPLORADOR DE CONTEÚDO ── */}
+      <SessionSidebar
+        isPlayerMode={isPlayerMode}
+        session={session}
+        campaign={campaign}
+        system={system}
+        participants={participants}
+        persistentParticipants={persistentParticipants}
+        isConnected={isConnected}
+        connectionStatus={connectionStatus}
+        currentPing={currentPing}
+        syncStatus={syncStatus}
+        lastSyncTime={lastSyncTime}
+        accessCode={accessCode}
+        serverUrl={serverUrl}
+        serverPort={serverPort}
+        localAddresses={localAddresses}
+        logs={logs}
+        setChatMessage={setChatMessage}
+        libraryClient={libraryClient}
+        onSync={() => runSyncCheck()}
+        onPing={handleTestPing}
+        onRoll={handleRollDice}
+        onSendChat={handleSendChat}
+        onClearLogs={() => setLogs([])}
+        onLeave={handleLeaveSession}
+        onEndSession={() => setShowEndModal(true)}
+        onMarkEnded={handlePlayerMarkSessionEnded}
+        onShowToTable={handleShowToTable}
+        onLibraryChanged={handleLibraryChanged}
+      />
 
-          <div className='h-5 w-px bg-vtt-light-gray/40'></div>
+      {/* ── ÁREA DA GRID VTT (OCUPA TODO O RESTANTE DA TELA) ── */}
+      <VttGridCanvas
+        campaignTitle={campaign?.title}
+        sessionTitle={session?.title || undefined}
+        activeHandout={activeHandout}
+        onCloseHandout={() => setActiveHandout(null)}
+        isConnected={isConnected}
+        currentPing={currentPing}
+      />
 
-          <div>
-            <h1 className='text-base font-bold text-white flex items-center gap-2'>
-              <span>🎲</span>
-              <span>{session?.title || 'Sessão de Jogo'}</span>
-            </h1>
-            <p className='text-xs text-neutral-400'>
-              Campanha: <strong className='text-neutral-200'>{campaign?.title || '—'}</strong>
-            </p>
-          </div>
-        </div>
-
-        {/* Lado Direito: Status da Conexão, Papel e Botões */}
-        <div className='flex items-center gap-4'>
-          {/* Status de Sincronização (Jogador) */}
-          {isPlayerMode && (
-            <button
-              type='button'
-              onClick={() => runSyncCheck()}
-              disabled={!isConnected || syncStatus === 'syncing'}
-              className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border ${syncStatus === 'syncing'
-                ? 'bg-amber-950/60 text-amber-300 border-amber-700/60 animate-pulse'
-                : syncStatus === 'updated' || syncStatus === 'up-to-date'
-                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/60 hover:bg-emerald-900/80'
-                  : 'bg-vtt-dark-gray text-neutral-300 border-vtt-light-gray/40 hover:text-white'
-                }`}
-              title={lastSyncTime ? `Última sincronização: ${lastSyncTime}. Clique para sincronizar agora.` : 'Clique para verificar e atualizar dados com o Mestre'}
-            >
-              <span>{syncStatus === 'syncing' ? '⏳' : syncStatus === 'updated' || syncStatus === 'up-to-date' ? '✓' : '🔄'}</span>
-              <span>
-                {syncStatus === 'syncing'
-                  ? 'Sincronizando...'
-                  : syncStatus === 'updated'
-                    ? 'Dados Atualizados'
-                    : syncStatus === 'up-to-date'
-                      ? 'Sincronizado'
-                      : 'Sincronizar'}
-              </span>
-            </button>
-          )}
-
-          {/* Badge de Papel */}
-          <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 ${!isPlayerMode
-            ? 'bg-red-950/80 text-red-300 border border-red-700/60'
-            : 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60'
-            }`}>
-            <span>{!isPlayerMode ? '👑' : '🛡️'}</span>
-            <span>{!isPlayerMode ? 'Mestre (Host)' : 'Jogador'}</span>
-          </div>
-
-          {/* Status Socket.io */}
-          <div className='flex items-center gap-2 px-3 py-1 rounded-full bg-vtt-dark-gray border border-vtt-light-gray/40 text-xs'>
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'
-              }`}></span>
-            <span className={isConnected ? 'text-emerald-300 font-medium' : 'text-neutral-400'}>
-              {connectionStatus === 'connected' ? 'Socket.io Conectado' : connectionStatus === 'connecting' ? 'Conectando...' : 'Desconectado'}
-            </span>
-            {currentPing !== null && (
-              <span className='text-[11px] text-neutral-400 pl-1 border-l border-neutral-700'>
-                {currentPing}ms
-              </span>
-            )}
-          </div>
-
-          {/* Ação de Encerrar Sessão (se for Mestre) */}
-          {!isPlayerMode && (
-            <button
-              type='button'
-              onClick={() => setShowEndModal(true)}
-              className='px-3.5 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800 text-red-200 text-xs font-semibold border border-red-700/70 transition-colors cursor-pointer'
-            >
-              Encerrar Sessão
-            </button>
-          )}
-        </div>
-      </header>
-
-      {/* ── CONTEÚDO PRINCIPAL (ABSTRAÇÃO DA SESSÃO ABERTA) ────────────────── */}
-      <main className='flex-1 overflow-y-auto p-6 flex flex-col gap-6'>
-        {/* Banner de Informação de Funcionamento */}
-        <div className='bg-linear-to-r from-neutral-900 via-vtt-dark to-neutral-900 border border-vtt-light-gray/30 rounded-xl p-4 flex flex-wrap items-center justify-between gap-4 text-xs shadow-sm'>
-          <div className='flex items-center gap-2.5'>
-            <span className='text-lg'>ℹ️</span>
-            <div>
-              <strong className='text-white font-semibold'>Tela de Verificação Operacional da Sessão: </strong>
-              <span className='text-neutral-300'>
-                A tela de jogo está abstraída para inspeção e testes das camadas de rede (Node.js Express + Socket.io) e download do conteúdo.
-              </span>
-            </div>
-          </div>
-          <div className='flex items-center gap-3 text-neutral-400'>
-            <span>Servidor HTTP: <strong className='text-emerald-400 font-mono'>Ativo</strong></span>
-            <span>•</span>
-            <span>WebSocket: <strong className='text-emerald-400 font-mono'>Sincronizado</strong></span>
-          </div>
-        </div>
-
-        {/* Banner de Aviso de Conexão com Fallback de Encerramento (Jogador) */}
-        {isPlayerMode && connectionStatus === 'error' && (
-          <div className='bg-amber-950/80 border border-amber-600/70 text-amber-200 p-4 rounded-xl flex flex-wrap items-center justify-between gap-4 shadow-md'>
-            <div className='flex items-center gap-3'>
-              <span className='text-2xl'>⚠️</span>
-              <div>
-                <p className='font-bold text-amber-100'>Não foi possível conectar ao servidor da sessão.</p>
-                <p className='text-xs text-amber-300/80 mt-0.5'>
-                  O servidor do Mestre está inacessível ou a sessão já foi finalizada. Você pode atualizar o status desta sessão para concluída no seu histórico local.
-                </p>
-              </div>
-            </div>
-            <div className='flex items-center gap-3'>
-              <button
-                type='button'
-                onClick={handlePlayerMarkSessionEnded}
-                className='px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-lg transition-colors cursor-pointer shadow'
-              >
-                Marcar como Encerrada e Sair
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── GRID SUPERIOR: CÓDIGO DE ACESSO & CONTEÚDO BAIXADO ───────────── */}
-        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
-          {/* CARD 1: CÓDIGO DE ACESSO & CONEXÃO DE REDE (6 Colunas) */}
-          <section className='lg:col-span-6 bg-vtt-dark border border-vtt-light-gray/40 rounded-xl p-6 shadow-md flex flex-col justify-between gap-5'>
-            <div>
-              <div className='flex items-center justify-between mb-3'>
-                <h2 className='text-base font-bold text-white flex items-center gap-2'>
-                  <span>🔑</span>
-                  <span>Código de Acesso da Sala</span>
-                </h2>
-                <span className='px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800'>
-                  Porta Express: {serverPort}
-                </span>
-              </div>
-
-              <p className='text-xs text-neutral-400 leading-relaxed'>
-                Forneça este código de 6 caracteres aos jogadores para que eles baixem as regras do sistema
-                e conectem-se automaticamente à sala.
-              </p>
-
-              {/* Caixa Grande de Código com Botão de Cópia */}
-              <div className='mt-4 p-4 rounded-xl bg-vtt-dark-gray/90 border border-vtt-light-gray/60 flex items-center justify-between'>
-                <div className='flex flex-col'>
-                  <span className='text-[10px] uppercase font-bold text-neutral-400 tracking-wider'>
-                    Código da Sessão
-                  </span>
-                  <span className='text-3xl font-mono font-extrabold tracking-widest text-vtt-light-red'>
-                    {accessCode || 'GERANDO...'}
-                  </span>
-                </div>
-
-                <div className='flex items-center gap-2'>
-                  <button
-                    type='button'
-                    onClick={handleCopyCode}
-                    className='px-4 py-2 rounded-lg bg-vtt-red hover:bg-red-700 text-white text-xs font-bold transition-colors cursor-pointer shadow flex items-center gap-1.5'
-                  >
-                    <span>{copiedCodeToast ? '✓ Copiado!' : 'Copiar Código'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Opções de Conexão na Rede Local (LAN / Web) */}
-              <div className='mt-4 pt-4 border-t border-vtt-light-gray/30 flex flex-col gap-2 text-xs'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-neutral-400'>Endereço do Servidor:</span>
-                  <code className='text-white bg-vtt-dark-gray px-2 py-0.5 rounded font-mono'>
-                    {serverUrl}
-                  </code>
-                </div>
-
-                {localAddresses.filter(ip => ip !== '127.0.0.1').length > 0 && (
-                  <div className='flex items-center justify-between'>
-                    <span className='text-neutral-400'>IP na Rede Local (Wi-Fi/LAN):</span>
-                    <div className='flex items-center gap-1.5'>
-                      {localAddresses.filter(ip => ip !== '127.0.0.1').map((ip, idx) => (
-                        <code key={idx} className='text-emerald-300 bg-vtt-dark-gray px-2 py-0.5 rounded font-mono'>
-                          http://{ip}:{serverPort}
-                        </code>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Ações Rápidas de Compartilhamento */}
-            <div className='flex flex-wrap items-center gap-3 pt-3 border-t border-vtt-light-gray/30'>
-              <button
-                type='button'
-                onClick={handleCopyFullLink}
-                className='px-3 py-1.5 rounded-lg bg-vtt-dark-gray hover:bg-neutral-700 border border-vtt-light-gray/40 text-neutral-300 text-xs font-medium transition-colors cursor-pointer'
-              >
-                {copiedLinkToast ? '✓ Formato Copiado!' : 'Copiar Formato IP:Porta#Código'}
-              </button>
-
-              <span className='text-[11px] text-neutral-500'>
-                💡 Dica: Jogadores no navegador podem abrir <code className='text-neutral-400'>http://localhost:{serverPort}</code> diretamente!
-              </span>
-            </div>
-          </section>
-
-          {/* CARD 2: PACOTE BAIXADO & CONTEÚDO DO SISTEMA (6 Colunas) */}
-          <section className='lg:col-span-6 bg-vtt-dark border border-vtt-light-gray/40 rounded-xl p-6 shadow-md flex flex-col justify-between gap-5'>
-            <div>
-              <div className='flex items-center justify-between mb-3'>
-                <h2 className='text-base font-bold text-white flex items-center gap-2'>
-                  <span>📦</span>
-                  <span>Pacote de Regras & Conteúdo Sincronizado</span>
-                </h2>
-                <span className='px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-950 text-emerald-300 border border-emerald-800 flex items-center gap-1'>
-                  <span>✓</span>
-                  <span>Baixado & Validado</span>
-                </span>
-              </div>
-
-              {/* Informações do Sistema de RPG */}
-              <div className='p-3.5 rounded-lg bg-vtt-dark-gray/60 border border-vtt-light-gray/30 flex flex-col gap-2'>
-                <div className='flex items-center justify-between'>
-                  <div className='flex items-center gap-2'>
-                    <strong className='text-sm text-white font-bold'>{system?.name || 'Sistema Personalizado'}</strong>
-                    {system?.version && (
-                      <span className='text-[10px] text-neutral-400 bg-vtt-dark px-1.5 py-0.5 rounded border border-neutral-700'>
-                        v{system.version}
-                      </span>
-                    )}
-                  </div>
-                  <span className='text-xs text-neutral-400'>{system?.genre || 'RPG Geral'}</span>
-                </div>
-
-                {system?.description && (
-                  <p className='text-xs text-neutral-300 line-clamp-2'>
-                    {system.description}
-                  </p>
-                )}
-
-                {/* Grupos de Atributos do Sistema */}
-                {system?.structure?.attributeGroups && system.structure.attributeGroups.length > 0 && (
-                  <div className='mt-1 pt-2 border-t border-vtt-light-gray/30'>
-                    <span className='text-[11px] text-neutral-400 block mb-1.5'>
-                      Grupos de Atributos Estruturados:
-                    </span>
-                    <div className='flex flex-wrap gap-1.5'>
-                      {system.structure.attributeGroups.map((grp, i) => (
-                        <span
-                          key={i}
-                          className='px-2 py-0.5 rounded text-[11px] bg-neutral-800 text-neutral-300 border border-neutral-700'
-                        >
-                          {grp.label} ({grp.fields?.length || 0})
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Resumo do Catálogo de Conteúdo */}
-              <div className='mt-3.5'>
-                <div className='flex items-center justify-between text-xs text-neutral-400 mb-2'>
-                  <span>Catálogo de Conteúdo da Campanha:</span>
-                  <strong className='text-white'>{contentList.length} itens no pacote</strong>
-                </div>
-
-                <div className='grid grid-cols-3 sm:grid-cols-4 gap-2 text-xs'>
-                  {Object.entries(contentByType).map(([type, count]) => (
-                    <div
-                      key={type}
-                      className='bg-vtt-dark-gray/50 border border-vtt-light-gray/30 p-2 rounded-lg text-center'
-                    >
-                      <span className='text-neutral-400 block text-[10px] uppercase font-semibold'>{type}</span>
-                      <strong className='text-white text-sm'>{count}</strong>
-                    </div>
-                  ))}
-                  {Object.keys(contentByType).length === 0 && (
-                    <div className='col-span-full py-2 text-center text-neutral-500 text-xs'>
-                      Nenhum item específico catalogado (regras padrão ativas).
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Fichas de Personagem da Campanha */}
-              <div className='mt-3.5 pt-3 border-t border-vtt-light-gray/30'>
-                <div className='flex items-center justify-between text-xs text-neutral-400 mb-2'>
-                  <span className='flex items-center gap-1.5 font-medium'>
-                    <span>📜</span>
-                    <span>Fichas de Personagem da Campanha:</span>
-                  </span>
-                  <div className='flex items-center gap-2'>
-                    <strong className='text-white'>{characters.length} ficha(s)</strong>
-                    {isPlayerMode && (
-                      <span className='text-[10px] text-emerald-400 bg-emerald-950/80 border border-emerald-800/80 px-1.5 py-0.5 rounded'>
-                        Sincronizável
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {characters.length > 0 ? (
-                  <div className='flex flex-wrap gap-2 max-h-32 overflow-y-auto pr-1'>
-                    {characters.map(char => (
-                      <div
-                        key={char.id}
-                        className='px-2.5 py-1.5 rounded-lg bg-vtt-dark-gray/60 border border-vtt-light-gray/30 flex items-center gap-2 text-xs'
-                      >
-                        <span className={`w-2 h-2 rounded-full ${char.role === 'pc' ? 'bg-cyan-400' : 'bg-amber-400'}`} />
-                        <span className='font-medium text-white truncate max-w-[120px]'>{char.name}</span>
-                        <span className='text-[10px] text-neutral-400 uppercase font-mono'>
-                          {char.role === 'pc' ? 'PJ' : char.role === 'npc' ? 'NPC' : 'Inimigo'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className='text-xs text-neutral-500 italic'>Nenhuma ficha de personagem vinculada no momento.</p>
-                )}
-              </div>
-            </div>
-
-            <div className='pt-3 border-t border-vtt-light-gray/30 text-[11px] text-neutral-400 flex items-center justify-between'>
-              <span>Sincronização: Express HTTP & Socket.io</span>
-              <div className='flex items-center gap-2'>
-                {lastSyncTime && (
-                  <span className='text-neutral-500 text-[10px]'>Checado às {lastSyncTime}</span>
-                )}
-                <span className='text-emerald-400 font-medium'>✓ Integridade Ativa</span>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {/* ── GRID INFERIOR: PARTICIPANTES CONECTADOS & CONSOLE DE TESTES ──── */}
-        <div className='grid grid-cols-1 lg:grid-cols-12 gap-6 items-start'>
-          {/* PARTICIPANTES CONECTADOS (5 Colunas) */}
-          <section className='lg:col-span-5 bg-vtt-dark border border-vtt-light-gray/40 rounded-xl p-6 shadow-md flex flex-col gap-4'>
-            <div className='flex items-center justify-between'>
-              <h2 className='text-base font-bold text-white flex items-center gap-2'>
-                <span>👥</span>
-                <span>Participantes Conectados</span>
-              </h2>
-              <span className='px-2.5 py-0.5 rounded-full text-xs font-bold bg-vtt-dark-gray text-neutral-200 border border-vtt-light-gray/40'>
-                {participants.length} online
-              </span>
-            </div>
-
-            <div className='flex flex-col gap-2.5 max-h-80 overflow-y-auto pr-1'>
-              {participants.map((p) => {
-                const isGM = p.role === 'gm'
-                const isSelf = p.username === user?.username
-
-                return (
-                  <div
-                    key={p.socketId}
-                    className={`p-3 rounded-xl border flex items-center justify-between transition-all ${isGM
-                      ? 'bg-red-950/20 border-red-800/50'
-                      : 'bg-vtt-dark-gray/60 border-vtt-light-gray/40'
-                      }`}
-                  >
-                    <div className='flex items-center gap-3'>
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs ${isGM ? 'bg-red-900/80 text-red-200' : 'bg-emerald-900/80 text-emerald-200'
-                        }`}>
-                        {isGM ? 'GM' : p.username.slice(0, 2).toUpperCase()}
-                      </div>
-
-                      <div className='flex flex-col'>
-                        <div className='flex items-center gap-2'>
-                          <strong className='text-sm text-white font-medium'>
-                            {p.username}
-                          </strong>
-                          {isSelf && (
-                            <span className='text-[10px] text-neutral-400 bg-neutral-800 px-1 rounded'>você</span>
-                          )}
-                        </div>
-
-                        <div className='flex items-center gap-2 text-[11px] text-neutral-400'>
-                          <span className={isGM ? 'text-red-400 font-semibold' : 'text-emerald-400'}>
-                            {isGM ? 'Mestre da Mesa' : 'Jogador'}
-                          </span>
-                          <span>•</span>
-                          <span>{p.downloadedContent ? '✓ Conteúdo Baixado' : 'Carregando...'}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className='flex items-center gap-2'>
-                      {p.pingMs !== undefined && (
-                        <span className='text-xs font-mono text-neutral-300 bg-vtt-dark px-2 py-0.5 rounded border border-neutral-700'>
-                          {p.pingMs}ms
-                        </span>
-                      )}
-                      <span className='w-2 h-2 rounded-full bg-emerald-400 animate-pulse' title='Online'></span>
-                    </div>
-                  </div>
-                )
-              })}
-
-              {participants.length === 0 && (
-                <div className='text-center py-8 text-neutral-500 text-xs'>
-                  Nenhum participante conectado ainda.
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* CONSOLE DE VERIFICAÇÃO E TESTES EM TEMPO REAL (7 Colunas) */}
-          <section className='lg:col-span-7 bg-vtt-dark border border-vtt-light-gray/40 rounded-xl p-6 shadow-md flex flex-col gap-4'>
-            <div className='flex items-center justify-between'>
-              <h2 className='text-base font-bold text-white flex items-center gap-2'>
-                <span>⚡</span>
-                <span>Console de Verificação de Funcionamento</span>
-              </h2>
-
-              <button
-                type='button'
-                onClick={() => setLogs([])}
-                className='text-[11px] text-neutral-400 hover:text-white transition-colors cursor-pointer'
-              >
-                Limpar Feed
-              </button>
-            </div>
-
-            {/* Botões de Ação de Teste */}
-            <div className='grid grid-cols-2 sm:grid-cols-5 gap-2.5'>
-              <button
-                type='button'
-                onClick={handleTestPing}
-                disabled={!isConnected}
-                className='px-3 py-2 rounded-lg bg-blue-900/60 hover:bg-blue-800 border border-blue-700/70 text-blue-200 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5'
-              >
-                <span>📡</span>
-                <span>Testar Ping</span>
-              </button>
-
-              {isPlayerMode && (
-                <button
-                  type='button'
-                  onClick={() => runSyncCheck()}
-                  disabled={!isConnected || syncStatus === 'syncing'}
-                  className='px-3 py-2 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 border border-cyan-700/70 text-cyan-200 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5'
-                >
-                  <span>🔄</span>
-                  <span>{syncStatus === 'syncing' ? 'Checando...' : 'Sincronizar'}</span>
-                </button>
-              )}
-
-              <button
-                type='button'
-                onClick={() => handleRollDice('1d20')}
-                disabled={!isConnected}
-                className='px-3 py-2 rounded-lg bg-emerald-900/60 hover:bg-emerald-800 border border-emerald-700/70 text-emerald-200 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5'
-              >
-                <span>🎲</span>
-                <span>Rolar 1d20</span>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => handleRollDice('2d6')}
-                disabled={!isConnected}
-                className='px-3 py-2 rounded-lg bg-purple-900/60 hover:bg-purple-800 border border-purple-700/70 text-purple-200 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5'
-              >
-                <span>🎲</span>
-                <span>Rolar 2d6</span>
-              </button>
-
-              <button
-                type='button'
-                onClick={() => handleRollDice('1d100')}
-                disabled={!isConnected}
-                className='px-3 py-2 rounded-lg bg-amber-900/60 hover:bg-amber-800 border border-amber-700/70 text-amber-200 text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center gap-1.5'
-              >
-                <span>🎲</span>
-                <span>Rolar 1d100</span>
-              </button>
-            </div>
-
-            {/* Janela de Log estilo Terminal */}
-            <div
-              ref={logBoxRef}
-              className='h-60 bg-black/80 border border-neutral-800 rounded-xl p-3.5 font-mono text-xs overflow-y-auto flex flex-col gap-1.5 select-text'
-            >
-              {logs.map((log) => (
-                <div
-                  key={log.id}
-                  className={`leading-relaxed break-words ${log.type === 'success'
-                    ? 'text-emerald-400'
-                    : log.type === 'warn'
-                      ? 'text-amber-400'
-                      : log.type === 'dice'
-                        ? 'text-purple-300 font-bold'
-                        : log.type === 'chat'
-                          ? 'text-cyan-300'
-                          : 'text-neutral-400'
-                    }`}
-                >
-                  <span className='text-neutral-600 mr-2'>[{log.time}]</span>
-                  <span>{log.message}</span>
-                </div>
-              ))}
-              {logs.length === 0 && (
-                <span className='text-neutral-600 italic'>Nenhum evento registrado ainda. Conecte-se e realize testes acima.</span>
-              )}
-            </div>
-
-            {/* Input de Chat de Teste */}
-            <form onSubmit={handleSendChat} className='flex gap-2'>
-              <input
-                type='text'
-                value={chatMessage}
-                onChange={(e) => setChatMessage(e.target.value)}
-                placeholder='Enviar mensagem de teste em tempo real para a sala...'
-                disabled={!isConnected}
-                className='flex-1 px-4 py-2 bg-vtt-dark-gray border border-vtt-light-gray/40 rounded-lg text-xs text-white focus:outline-none focus:border-vtt-red'
-              />
-              <button
-                type='submit'
-                disabled={!isConnected || !chatMessage.trim()}
-                className='px-4 py-2 bg-vtt-red hover:bg-red-700 disabled:bg-neutral-800 disabled:text-neutral-500 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer'
-              >
-                Enviar
-              </button>
-            </form>
-          </section>
-        </div>
-      </main>
-
-      {/* ── MODAL DE CONFIRMAÇÃO PARA ENCERRAR SESSÃO ───────────────────────── */}
+      {/* ── MODAL DE CONFIRMAÇÃO PARA ENCERRAR SESSÃO ── */}
       {showEndModal && (
-        <div className='fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4'>
-          <div className='bg-vtt-dark border border-vtt-light-gray/40 rounded-2xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-200'>
-            <div className='flex items-center gap-3 text-red-400'>
-              <span className='text-2xl'>⚠️</span>
-              <h3 className='text-lg font-bold text-white'>Encerrar Sessão de Jogo?</h3>
+        <div className='fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 select-none'>
+          <div className='bg-vtt-dark border border-vtt-dark-gray rounded-xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150'>
+            <div className='flex items-center gap-2.5 text-vtt-red'>
+              <span className='text-xl'>⚠️</span>
+              <h3 className='text-base font-bold text-vtt-golden font-cinzel'>Encerrar Sessão de Jogo?</h3>
             </div>
 
             <p className='text-xs text-neutral-300 leading-relaxed'>
@@ -1203,7 +771,7 @@ export default function GameSessionPage(): React.JSX.Element {
               desconectados e o status da sessão será alterado para <strong>Concluída</strong>.
             </p>
 
-            <div className='flex items-center justify-end gap-3 pt-3 border-t border-vtt-light-gray/30'>
+            <div className='flex items-center justify-end gap-3 pt-3 border-t border-vtt-dark-gray'>
               <button
                 type='button'
                 onClick={() => setShowEndModal(false)}
@@ -1217,7 +785,7 @@ export default function GameSessionPage(): React.JSX.Element {
                 type='button'
                 onClick={handleConfirmEndSession}
                 disabled={isEnding}
-                className='px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-white text-xs font-bold transition-colors cursor-pointer shadow'
+                className='px-5 py-2 rounded-lg bg-vtt-red hover:bg-vtt-dark-red text-white text-xs font-semibold transition-colors cursor-pointer shadow'
               >
                 {isEnding ? 'Encerrando...' : 'Confirmar Encerramento'}
               </button>

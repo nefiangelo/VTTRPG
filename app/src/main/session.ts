@@ -972,3 +972,163 @@ export function applySessionSyncUpdate(payload: ApplySyncPayload, userId?: numbe
   }
 }
 
+export interface PersistentParticipant {
+  id: number
+  session_id: number
+  campaign_id: number
+  user_id: number
+  username: string
+  role: 'gm' | 'player' | 'observer'
+  first_joined: string
+  last_joined: string
+}
+
+export function recordSessionParticipant(payload: {
+  sessionId: number
+  campaignId: number
+  username: string
+  role?: 'gm' | 'player' | 'observer'
+}): PersistentParticipant {
+  const db = getDb()
+  const cleanUsername = payload.username.trim()
+
+  let user = db
+    .prepare('SELECT id, username FROM users WHERE username = ? COLLATE NOCASE')
+    .get(cleanUsername) as { id: number; username: string } | undefined
+
+  if (!user) {
+    const res = db
+      .prepare(`INSERT INTO users (username, password, created_at) VALUES (?, 'network_player', datetime('now'))`)
+      .run(cleanUsername)
+    user = { id: Number(res.lastInsertRowid), username: cleanUsername }
+  }
+
+  // Registra em campaign_members
+  db.prepare(`
+    INSERT INTO campaign_members (campaign_id, user_id, role, joined_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(campaign_id, user_id) DO UPDATE SET role = role
+  `).run(payload.campaignId, user.id, payload.role || 'player')
+
+  // Registra em session_participants
+  db.prepare(`
+    INSERT INTO session_participants (session_id, campaign_id, user_id, username, role, first_joined, last_joined)
+    VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+    ON CONFLICT(session_id, user_id) DO UPDATE SET
+      last_joined = datetime('now'),
+      role = excluded.role,
+      username = excluded.username
+  `).run(payload.sessionId, payload.campaignId, user.id, user.username, payload.role || 'player')
+
+  const row = db
+    .prepare('SELECT * FROM session_participants WHERE session_id = ? AND user_id = ?')
+    .get(payload.sessionId, user.id) as PersistentParticipant
+
+  return row
+}
+
+export function getSessionParticipants(sessionId?: number, campaignId?: number): PersistentParticipant[] {
+  const db = getDb()
+  const list: PersistentParticipant[] = []
+  const seenUsernames = new Set<string>()
+
+  // 1. Participantes registrados em session_participants
+  if (sessionId && campaignId) {
+    const rows = db.prepare(`
+      SELECT 
+        MAX(id) as id,
+        session_id,
+        campaign_id,
+        user_id,
+        username,
+        role,
+        MIN(first_joined) as first_joined,
+        MAX(last_joined) as last_joined
+      FROM session_participants
+      WHERE session_id = ? OR campaign_id = ?
+      GROUP BY username
+      ORDER BY last_joined DESC
+    `).all(sessionId, campaignId) as PersistentParticipant[]
+
+    for (const r of rows) {
+      if (!seenUsernames.has(r.username.toLowerCase())) {
+        seenUsernames.add(r.username.toLowerCase())
+        list.push(r)
+      }
+    }
+  } else if (sessionId) {
+    const rows = db.prepare(`
+      SELECT * FROM session_participants WHERE session_id = ? ORDER BY last_joined DESC
+    `).all(sessionId) as PersistentParticipant[]
+    for (const r of rows) {
+      if (!seenUsernames.has(r.username.toLowerCase())) {
+        seenUsernames.add(r.username.toLowerCase())
+        list.push(r)
+      }
+    }
+  } else if (campaignId) {
+    const rows = db.prepare(`
+      SELECT 
+        MAX(id) as id,
+        session_id,
+        campaign_id,
+        user_id,
+        username,
+        role,
+        MIN(first_joined) as first_joined,
+        MAX(last_joined) as last_joined
+      FROM session_participants
+      WHERE campaign_id = ?
+      GROUP BY username
+      ORDER BY last_joined DESC
+    `).all(campaignId) as PersistentParticipant[]
+    for (const r of rows) {
+      if (!seenUsernames.has(r.username.toLowerCase())) {
+        seenUsernames.add(r.username.toLowerCase())
+        list.push(r)
+      }
+    }
+  }
+
+  // 2. Mescla membros da campanha cadastrados que ainda não estão em session_participants
+  if (campaignId) {
+    try {
+      const members = db.prepare(`
+        SELECT cm.id, cm.campaign_id, cm.user_id, u.username, cm.role, cm.joined_at as first_joined, cm.joined_at as last_joined
+        FROM campaign_members cm
+        JOIN users u ON cm.user_id = u.id
+        WHERE cm.campaign_id = ?
+      `).all(campaignId) as Array<{
+        id: number
+        campaign_id: number
+        user_id: number
+        username: string
+        role: string
+        first_joined: string
+        last_joined: string
+      }>
+
+      for (const m of members) {
+        if (!seenUsernames.has(m.username.toLowerCase())) {
+          seenUsernames.add(m.username.toLowerCase())
+          list.push({
+            id: m.id,
+            session_id: sessionId || 0,
+            campaign_id: m.campaign_id,
+            user_id: m.user_id,
+            username: m.username,
+            role: m.role as 'gm' | 'player' | 'observer',
+            first_joined: m.first_joined,
+            last_joined: m.last_joined
+          })
+        }
+      }
+    } catch (e) {
+      console.error('Erro ao buscar membros da campanha para participantes:', e)
+    }
+  }
+
+  return list
+}
+
+

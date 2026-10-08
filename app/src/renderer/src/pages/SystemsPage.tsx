@@ -873,259 +873,259 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
 
           <fieldset disabled={isReadOnly} className="flex flex-col gap-8">
             {/* SESSÃO 1: INFORMAÇÕES GERAIS */}
-          <section className="flex flex-col gap-5 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
-            <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
-              <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
-                <IconInfo />
-              </span>
-              <div>
-                <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Informações Gerais</h3>
-              </div>
-            </div>
-
-            <div className="flex gap-4">
-              <label className="flex-[2] flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} required
-                  placeholder="ex: D&D 5e"
-                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
-              </label>
-              <label className="flex-1 flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
-                <input type="text" value={version} onChange={e => setVersion(e.target.value)}
-                  placeholder="ex: 5.1"
-                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
-              </label>
-            </div>
-
-            <div className="flex gap-4">
-              <label className="flex-1 flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
-                <select value={genre} onChange={e => setGenre(e.target.value)}
-                  className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
-                             text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
-                  <option value="">Selecionar...</option>
-                  {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </label>
-              <label className="flex-[2] flex flex-col gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
-                <input type="text" value={description} onChange={e => setDescription(e.target.value)}
-                  placeholder="Breve descrição do sistema..."
-                  className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
-                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
-              </label>
-            </div>
-          </section>
-
-          {/* SESSÃO 2: ESTRUTURA DO SISTEMA (ABAS) */}
-          <section className="flex flex-col gap-4 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
-
-            <div className="flex items-center gap-3 mb-2 border-b border-vtt-dark-gray pb-3">
-              <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
-                <IconLayers />
-              </span>
-              <div className="flex-1">
-                <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Estrutura de Atributos</h3>
-              </div>
-            </div>
-
-            {/* Builder section tabs */}
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
-                <div className="flex gap-2 bg-vtt-dark-gray/30 p-1 rounded-lg">
-                  <button
-                    type="button"
-                    onClick={() => setActiveBuilderTab('content')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'content'
-                      ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
-                      : 'text-neutral-500 hover:text-vtt-light'
-                      }`}
-                  >
-                    <IconBox />
-                    <span>Tipos de Conteúdo</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                      {Object.values(contentFields).reduce((acc, f) => acc + (f?.length ?? 0), 0)}
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setActiveBuilderTab('character')}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'character'
-                      ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
-                      : 'text-neutral-500 hover:text-vtt-light'
-                      }`}
-                  >
-                    <IconCharacter />
-                    <span>Ficha de Personagem</span>
-                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                      {groups.length}
-                    </span>
-                  </button>
+            <section className="flex flex-col gap-5 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
+              <div className="flex items-center gap-3 mb-1 border-b border-vtt-dark-gray pb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
+                  <IconInfo />
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Informações Gerais</h3>
                 </div>
               </div>
 
-              {/* TAB: CONTENT FIELDS BY TYPE */}
-              {activeBuilderTab === 'content' && (
-                <div className="flex flex-col gap-4 mt-2">
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
-                    {CONTENT_TYPE_LIST.map(ct => {
-                      const count = (contentFields[ct.value] ?? []).length
-                      const isSelected = selectedContentType === ct.value
-                      return (
-                        <button
-                          key={ct.value}
-                          type="button"
-                          onClick={() => setSelectedContentType(ct.value)}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 cursor-pointer border ${isSelected
-                            ? 'bg-vtt-golden/10 text-vtt-golden border-vtt-golden/30 shadow-sm'
-                            : 'bg-vtt-dark-gray/40 border-transparent text-neutral-400 hover:text-vtt-golden hover:bg-vtt-dark-gray'
-                            }`}
-                        >
-                          {/* O texto e ícone (se houver no futuro) do tipo de conteúdo */}
-                          <span>{ct.label}</span>
+              <div className="flex gap-4">
+                <label className="flex-[2] flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Nome *</span>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} required
+                    placeholder="ex: D&D 5e"
+                    className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+                </label>
+                <label className="flex-1 flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Versão</span>
+                  <input type="text" value={version} onChange={e => setVersion(e.target.value)}
+                    placeholder="ex: 5.1"
+                    className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+                </label>
+              </div>
 
-                          {count > 0 && (
-                            <span
-                              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${isSelected ? 'bg-vtt-golden/20 text-vtt-golden' : 'bg-vtt-dark text-neutral-400'
-                                }`}
-                            >
-                              {count}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
+              <div className="flex gap-4">
+                <label className="flex-1 flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Gênero</span>
+                  <select value={genre} onChange={e => setGenre(e.target.value)}
+                    className="bg-vtt-dark-gray border border-vtt-light-gray rounded-lg text-vtt-light py-1.5 px-3
+                             text-sm outline-none focus:border-vtt-golden transition-colors cursor-pointer">
+                    <option value="">Selecionar...</option>
+                    {GENRE_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </label>
+                <label className="flex-[2] flex flex-col gap-1.5">
+                  <span className="text-[10px] font-semibold uppercase tracking-widest text-neutral-400">Descrição</span>
+                  <input type="text" value={description} onChange={e => setDescription(e.target.value)}
+                    placeholder="Breve descrição do sistema..."
+                    className="bg-transparent border-b border-vtt-light-gray text-vtt-light placeholder:text-neutral-600
+                             py-1.5 text-sm outline-none focus:border-vtt-golden transition-colors" />
+                </label>
+              </div>
+            </section>
+
+            {/* SESSÃO 2: ESTRUTURA DO SISTEMA (ABAS) */}
+            <section className="flex flex-col gap-4 bg-[#222222] p-6 rounded-xl border border-vtt-dark-gray/50 shadow-inner">
+
+              <div className="flex items-center gap-3 mb-2 border-b border-vtt-dark-gray pb-3">
+                <span className="flex items-center justify-center w-7 h-7 rounded bg-vtt-golden/20 text-vtt-golden">
+                  <IconLayers />
+                </span>
+                <div className="flex-1">
+                  <h3 className="text-sm font-bold text-vtt-golden uppercase tracking-widest">Estrutura de Atributos</h3>
+                </div>
+              </div>
+
+              {/* Builder section tabs */}
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1">
+                  <div className="flex gap-2 bg-vtt-dark-gray/30 p-1 rounded-lg">
+                    <button
+                      type="button"
+                      onClick={() => setActiveBuilderTab('content')}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'content'
+                        ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
+                        : 'text-neutral-500 hover:text-vtt-light'
+                        }`}
+                    >
+                      <IconBox />
+                      <span>Tipos de Conteúdo</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                        {Object.values(contentFields).reduce((acc, f) => acc + (f?.length ?? 0), 0)}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBuilderTab('character')}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'character'
+                        ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
+                        : 'text-neutral-500 hover:text-vtt-light'
+                        }`}
+                    >
+                      <IconCharacter />
+                      <span>Ficha de Personagem</span>
+                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
+                        {groups.length}
+                      </span>
+                    </button>
                   </div>
+                </div>
 
-                  {/* Selected Type Card */}
-                  {(() => {
-                    const meta = CONTENT_TYPE_LIST.find(c => c.value === selectedContentType)!
-                    const currentFields = contentFields[selectedContentType] ?? []
-                    return (
-                      <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden flex flex-col gap-3 p-4">
-                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-vtt-dark-gray/60">
-                          <div>
-                            <h4 className="text-sm font-bold text-vtt-golden flex items-center gap-2">
-                              <IconBox />
-                              <span>{meta.label}</span>
-                            </h4>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => loadDefaultPreset(selectedContentType)}
-                              className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-vtt-dark-gray hover:bg-neutral-700 transition-colors cursor-pointer text-vtt-golden"
-                            >
-                              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /></svg>
-                              Padrão D&D
-                            </button>
-                            {currentFields.length > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => clearContentFields(selectedContentType)}
-                                className="text-xs text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer px-2 py-1"
+                {/* TAB: CONTENT FIELDS BY TYPE */}
+                {activeBuilderTab === 'content' && (
+                  <div className="flex flex-col gap-4 mt-2">
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin">
+                      {CONTENT_TYPE_LIST.map(ct => {
+                        const count = (contentFields[ct.value] ?? []).length
+                        const isSelected = selectedContentType === ct.value
+                        return (
+                          <button
+                            key={ct.value}
+                            type="button"
+                            onClick={() => setSelectedContentType(ct.value)}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all duration-200 cursor-pointer border ${isSelected
+                              ? 'bg-vtt-golden/10 text-vtt-golden border-vtt-golden/30 shadow-sm'
+                              : 'bg-vtt-dark-gray/40 border-transparent text-neutral-400 hover:text-vtt-golden hover:bg-vtt-dark-gray'
+                              }`}
+                          >
+                            {/* O texto e ícone (se houver no futuro) do tipo de conteúdo */}
+                            <span>{ct.label}</span>
+
+                            {count > 0 && (
+                              <span
+                                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono transition-colors ${isSelected ? 'bg-vtt-golden/20 text-vtt-golden' : 'bg-vtt-dark text-neutral-400'
+                                  }`}
                               >
-                                Limpar
-                              </button>
+                                {count}
+                              </span>
                             )}
-                          </div>
-                        </div>
+                          </button>
+                        )
+                      })}
+                    </div>
 
-                        {/* Field list for this type */}
-                        <div className="flex flex-col gap-2">
-                          {currentFields.length === 0 && (
-                            <div className="text-center py-6 text-neutral-500 text-xs border border-dashed border-vtt-dark-gray rounded-lg flex flex-col items-center gap-2">
-                              <p>Nenhum campo fixo definido.</p>
+                    {/* Selected Type Card */}
+                    {(() => {
+                      const meta = CONTENT_TYPE_LIST.find(c => c.value === selectedContentType)!
+                      const currentFields = contentFields[selectedContentType] ?? []
+                      return (
+                        <div className="border border-vtt-dark-gray rounded-xl bg-vtt-dark overflow-hidden flex flex-col gap-3 p-4">
+                          <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-vtt-dark-gray/60">
+                            <div>
+                              <h4 className="text-sm font-bold text-vtt-golden flex items-center gap-2">
+                                <IconBox />
+                                <span>{meta.label}</span>
+                              </h4>
+                            </div>
+                            <div className="flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={() => loadDefaultPreset(selectedContentType)}
-                                className="text-xs text-vtt-golden/80 hover:text-vtt-golden underline cursor-pointer"
+                                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-vtt-dark-gray hover:bg-neutral-700 transition-colors cursor-pointer text-vtt-golden"
                               >
-                                Carregar campos padrão
+                                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z" /></svg>
+                                Padrão D&D
                               </button>
+                              {currentFields.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => clearContentFields(selectedContentType)}
+                                  className="text-xs text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer px-2 py-1"
+                                >
+                                  Limpar
+                                </button>
+                              )}
                             </div>
-                          )}
-                          {currentFields.map((f, i) => (
-                            <FieldRow
-                              key={f.key ? `${f.key}-${i}` : String(i)}
-                              field={f}
-                              index={i}
-                              onUpdate={nf => updateContentField(i, nf)}
-                              onRemove={() => removeContentField(i)}
-                              onDragStart={handleContentFieldDragStart}
-                              onDragOver={handleContentFieldDragOver}
-                              onDragLeave={handleContentFieldDragLeave}
-                              onDrop={handleContentFieldDrop}
-                              onDragEnd={handleContentFieldDragEnd}
-                              isDragging={draggedContentField === i}
-                              isOver={overContentField === i}
-                            />
-                          ))}
+                          </div>
 
-                          <button
-                            type="button"
-                            onClick={addContentField}
-                            className="mt-1 flex items-center gap-1.5 text-xs text-vtt-light hover:text-vtt-golden
+                          {/* Field list for this type */}
+                          <div className="flex flex-col gap-2">
+                            {currentFields.length === 0 && (
+                              <div className="text-center py-6 text-neutral-500 text-xs border border-dashed border-vtt-dark-gray rounded-lg flex flex-col items-center gap-2">
+                                <p>Nenhum campo fixo definido.</p>
+                                <button
+                                  type="button"
+                                  onClick={() => loadDefaultPreset(selectedContentType)}
+                                  className="text-xs text-vtt-golden/80 hover:text-vtt-golden underline cursor-pointer"
+                                >
+                                  Carregar campos padrão
+                                </button>
+                              </div>
+                            )}
+                            {currentFields.map((f, i) => (
+                              <FieldRow
+                                key={f.key ? `${f.key}-${i}` : String(i)}
+                                field={f}
+                                index={i}
+                                onUpdate={nf => updateContentField(i, nf)}
+                                onRemove={() => removeContentField(i)}
+                                onDragStart={handleContentFieldDragStart}
+                                onDragOver={handleContentFieldDragOver}
+                                onDragLeave={handleContentFieldDragLeave}
+                                onDrop={handleContentFieldDrop}
+                                onDragEnd={handleContentFieldDragEnd}
+                                isDragging={draggedContentField === i}
+                                isOver={overContentField === i}
+                              />
+                            ))}
+
+                            <button
+                              type="button"
+                              onClick={addContentField}
+                              className="mt-1 flex items-center gap-1.5 text-xs text-vtt-light hover:text-vtt-golden
                                        transition-colors font-medium cursor-pointer w-fit"
-                          >
-                            <IconPlus /> Adicionar
-                          </button>
+                            >
+                              <IconPlus /> Adicionar
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              )}
+                      )
+                    })()}
+                  </div>
+                )}
 
-              {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
-              {activeBuilderTab === 'character' && (
-                <div className="flex flex-col gap-4 mt-2">
-                  <div className="flex items-center justify-between">
-                    <button type="button" onClick={addGroup}
-                      className="flex items-center gap-1.5 text-xs font-semibold text-vtt-golden hover:text-[#FBE8A6]
+                {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
+                {activeBuilderTab === 'character' && (
+                  <div className="flex flex-col gap-4 mt-2">
+                    <div className="flex items-center justify-between">
+                      <button type="button" onClick={addGroup}
+                        className="flex items-center gap-1.5 text-xs font-semibold text-vtt-golden hover:text-[#FBE8A6]
                                  transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-golden/30
                                  hover:border-vtt-golden bg-vtt-golden/10 hover:bg-vtt-golden/20 ml-auto">
-                      <IconPlus /> Novo Grupo
-                    </button>
-                  </div>
-
-                  {groups.length === 0 && (
-                    <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
-                      Nenhum grupo definido.
+                        <IconPlus /> Novo Grupo
+                      </button>
                     </div>
-                  )}
 
-                  {groups.map((g, i) => (
-                    <GroupCard
-                      key={g.id || String(i)}
-                      group={g}
-                      index={i}
-                      onUpdate={ng => updateGroup(i, ng)}
-                      onRemove={() => removeGroup(i)}
-                      onDragStartGroup={handleGroupDragStart}
-                      onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
-                      onDragLeaveGroup={handleGroupDragLeave}
-                      onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
-                      onDragEndGroup={handleGroupDragEnd}
-                      isDraggingGroup={draggedGroupIndex === i}
-                      isOverGroup={overGroupIndex === i}
-                      onFieldDragStart={handleFieldDragStart}
-                      onFieldDragOver={handleFieldDragOver}
-                      onFieldDragLeave={handleFieldDragLeave}
-                      onFieldDrop={handleFieldDrop}
-                      onFieldDragEnd={handleFieldDragEnd}
-                      draggedFieldInfo={draggedGroupField}
-                      overFieldInfo={overGroupField}
-                      onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+                    {groups.length === 0 && (
+                      <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
+                        Nenhum grupo definido.
+                      </div>
+                    )}
+
+                    {groups.map((g, i) => (
+                      <GroupCard
+                        key={g.id || String(i)}
+                        group={g}
+                        index={i}
+                        onUpdate={ng => updateGroup(i, ng)}
+                        onRemove={() => removeGroup(i)}
+                        onDragStartGroup={handleGroupDragStart}
+                        onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
+                        onDragLeaveGroup={handleGroupDragLeave}
+                        onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
+                        onDragEndGroup={handleGroupDragEnd}
+                        isDraggingGroup={draggedGroupIndex === i}
+                        isOverGroup={overGroupIndex === i}
+                        onFieldDragStart={handleFieldDragStart}
+                        onFieldDragOver={handleFieldDragOver}
+                        onFieldDragLeave={handleFieldDragLeave}
+                        onFieldDrop={handleFieldDrop}
+                        onFieldDragEnd={handleFieldDragEnd}
+                        draggedFieldInfo={draggedGroupField}
+                        overFieldInfo={overGroupField}
+                        onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
           </fieldset>
 
           {/* SESSÃO 3: ZONA DE PERIGO (Só aparece ao editar um sistema existente) */}

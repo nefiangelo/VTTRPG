@@ -14,7 +14,9 @@ import {
   reopenSession,
   deleteSession,
   importSessionBundle,
-  applySessionSyncUpdate
+  applySessionSyncUpdate,
+  getSessionParticipants,
+  recordSessionParticipant
 } from './session'
 import type { CreateSessionPayload, UpdateSessionPayload, ImportBundlePayload, ApplySyncPayload } from './session'
 import {
@@ -35,8 +37,16 @@ import {
   startSessionServer,
   stopSessionServer,
   getSessionServerStatus,
-  getLocalIpAddresses
+  getLocalIpAddresses,
+  broadcastLibraryUpdate
 } from './session_server'
+import {
+  getCampaignNodes,
+  createCampaignNode,
+  updateCampaignNode,
+  deleteCampaignNode
+} from './campaign_nodes'
+import type { CreateCampaignNodePayload, UpdateCampaignNodePayload } from './campaign_nodes'
 
 function createWindow(): void {
   // Create the browser window.
@@ -157,6 +167,12 @@ app.whenReady().then(() => {
   ipcMain.handle('session:applySyncUpdate', (_e, payload: ApplySyncPayload, userId?: number) =>
     applySessionSyncUpdate(payload, userId)
   )
+  ipcMain.handle('session:getParticipants', (_e, sessionId?: number, campaignId?: number) =>
+    getSessionParticipants(sessionId, campaignId)
+  )
+  ipcMain.handle('session:recordParticipant', (_e, payload: { sessionId: number; campaignId: number; username: string; role?: 'gm' | 'player' | 'observer' }) =>
+    recordSessionParticipant(payload)
+  )
 
   // Characters (Fichas de Personagem)
   ipcMain.handle('character:getByCampaign', (_e, campaignId: number, userId?: number) =>
@@ -198,6 +214,32 @@ app.whenReady().then(() => {
   ipcMain.handle('server:getLocalIps', () =>
     getLocalIpAddresses()
   )
+
+  // Campaign Nodes (Biblioteca de Conteúdo da Campanha: Pastas, Arquivos, Fichas, Notas, Imagens, etc.)
+  ipcMain.handle('campaignNodes:getByCampaign', (_e, campaignId: number, isGM: boolean = true, username?: string) =>
+    getCampaignNodes(campaignId, isGM, username)
+  )
+  ipcMain.handle('campaignNodes:create', (_e, payload: CreateCampaignNodePayload) => {
+    const res = createCampaignNode(payload)
+    if (res.success) {
+      broadcastLibraryUpdate(payload.campaign_id)
+    }
+    return res
+  })
+  ipcMain.handle('campaignNodes:update', (_e, payload: UpdateCampaignNodePayload, campaignId?: number) => {
+    const res = updateCampaignNode(payload)
+    if (res.success && campaignId) {
+      broadcastLibraryUpdate(campaignId)
+    }
+    return res
+  })
+  ipcMain.handle('campaignNodes:delete', (_e, id: string, campaignId?: number) => {
+    const res = deleteCampaignNode(id)
+    if (res.success && campaignId) {
+      broadcastLibraryUpdate(campaignId)
+    }
+    return res
+  })
 
   createWindow()
 

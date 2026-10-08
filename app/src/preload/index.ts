@@ -54,6 +54,10 @@ const api = {
       ipcRenderer.invoke('session:importBundle', payload),
     applySyncUpdate: (payload: unknown, userId?: number) =>
       ipcRenderer.invoke('session:applySyncUpdate', payload, userId),
+    getParticipants: (sessionId?: number, campaignId?: number) =>
+      ipcRenderer.invoke('session:getParticipants', sessionId, campaignId),
+    recordParticipant: (payload: { sessionId: number; campaignId: number; username: string; role?: 'gm' | 'player' | 'observer' }) =>
+      ipcRenderer.invoke('session:recordParticipant', payload),
   },
 
   characters: {
@@ -87,6 +91,17 @@ const api = {
     stop: (endedInfo?: { sessionId?: number; notes?: string }) => ipcRenderer.invoke('server:stop', endedInfo),
     getStatus: () => ipcRenderer.invoke('server:getStatus'),
     getLocalIps: () => ipcRenderer.invoke('server:getLocalIps'),
+  },
+
+  campaignNodes: {
+    getByCampaign: (campaignId: number, isGM: boolean = true, username?: string) =>
+      ipcRenderer.invoke('campaignNodes:getByCampaign', campaignId, isGM, username),
+    create: (payload: unknown) =>
+      ipcRenderer.invoke('campaignNodes:create', payload),
+    update: (payload: unknown, campaignId?: number) =>
+      ipcRenderer.invoke('campaignNodes:update', payload, campaignId),
+    delete: (id: string, campaignId?: number) =>
+      ipcRenderer.invoke('campaignNodes:delete', id, campaignId),
   },
 }
 
