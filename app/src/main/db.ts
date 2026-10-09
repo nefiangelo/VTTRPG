@@ -154,7 +154,6 @@ function runMigrations(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_characters_campaign ON characters(campaign_id);
     CREATE INDEX IF NOT EXISTS idx_characters_user     ON characters(user_id);
-    CREATE INDEX IF NOT EXISTS idx_characters_uuid     ON characters(uuid);
   `)
 
   // ── Sessions ───────────────────────────────────────────────────────────────
@@ -296,6 +295,7 @@ function runMigrations(db: Database.Database): void {
     const needsMigration = campaignIdCol && campaignIdCol.notnull === 1
 
     if (needsMigration) {
+      db.pragma('foreign_keys = OFF')
       db.exec(`
         CREATE TABLE characters_v2 (
           id                    INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -322,6 +322,7 @@ function runMigrations(db: Database.Database): void {
         CREATE INDEX IF NOT EXISTS idx_characters_user     ON characters(user_id);
         CREATE INDEX IF NOT EXISTS idx_characters_uuid     ON characters(uuid);
       `)
+      db.pragma('foreign_keys = ON')
     } else {
       try { db.exec(`ALTER TABLE characters ADD COLUMN uuid TEXT;`) } catch {}
       try { db.exec(`ALTER TABLE characters ADD COLUMN rpg_system_id INTEGER REFERENCES rpg_systems(id) ON DELETE RESTRICT;`) } catch {}

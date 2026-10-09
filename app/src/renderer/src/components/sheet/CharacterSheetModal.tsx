@@ -5,10 +5,11 @@ import type {
   SheetLayoutConfig,
   DynamicListItem,
   CharacterSheetData,
-  SheetLayoutPin
+  SheetCustomSection
 } from '../../../../preload/index.d'
-import SheetPinOverlay from './SheetPinOverlay'
+import CustomSheetRenderer from './CustomSheetRenderer'
 import DynamicListTab from './DynamicListTab'
+import { DEFAULT_CUSTOM_SHEET_SECTIONS, DEFAULT_MODULAR_SECTIONS } from '../../utils/contentPresets'
 import {
   FileText,
   Package,
@@ -17,11 +18,6 @@ import {
   Scroll,
   Save,
   X,
-  ChevronLeft,
-  ChevronRight,
-  ZoomIn,
-  ZoomOut,
-  Maximize,
   User,
   Heart,
   Shield,
@@ -51,18 +47,35 @@ export default function CharacterSheetModal({
   const sheetLayout: SheetLayoutConfig = useMemo(() => {
     return (
       system?.structure?.sheetLayout ?? {
-        type: 'hybrid',
-        pages: [],
-        pins: [],
-        modularSections: [
-          { id: 'inventory', title: 'Inventário & Itens', contentType: 'item', enabled: true },
-          { id: 'spells', title: 'Grimório de Magias', contentType: 'spell', enabled: true },
-          { id: 'features', title: 'Habilidades & Talentos', contentType: 'feat', enabled: true },
-          { id: 'notes', title: 'Biografia & Anotações', enabled: true }
-        ]
+        type: 'custom',
+        sections: DEFAULT_CUSTOM_SHEET_SECTIONS,
+        modularSections: DEFAULT_MODULAR_SECTIONS
       }
     )
   }, [system])
+
+  // Seções configuradas pelo criador do sistema (com fallback)
+  const sections: SheetCustomSection[] = useMemo(() => {
+    if (sheetLayout.sections && sheetLayout.sections.length > 0) {
+      return sheetLayout.sections
+    }
+    // Suporte a migração de attributeGroups de versões anteriores
+    if (system?.structure?.attributeGroups && system.structure.attributeGroups.length > 0) {
+      return system.structure.attributeGroups.map((g) => ({
+        id: g.id,
+        title: g.label,
+        fields: (g.fields || []).map((f) => ({
+          id: f.id || f.key,
+          key: f.key,
+          label: f.label,
+          type: (f.type === 'list' ? 'reference' : f.type) as SheetCustomSection['fields'][0]['type'],
+          width: '1/2' as const,
+          placeholder: f.placeholder
+        }))
+      }))
+    }
+    return DEFAULT_CUSTOM_SHEET_SECTIONS
+  }, [sheetLayout.sections, system?.structure?.attributeGroups])
 
   // Inicializa dados da ficha
   const initialData: CharacterSheetData = useMemo(() => {
@@ -88,18 +101,18 @@ export default function CharacterSheetModal({
     initialData.attributes
   )
   const [lists, setLists] = useState<Record<string, DynamicListItem[]>>(initialData.lists)
-  const [characterName, setCharacterName] = useState(character.name)
+  const [characterName, setCharacterName] = useState(
+    (attributes['character_name'] as string) || character.name
+  )
   const [characterNotes, setCharacterNotes] = useState(initialData.notes || '')
 
   const [activeTab, setActiveTab] = useState<string>('sheet')
-  const [currentPage, setCurrentPage] = useState<number>(1)
-  const [zoom, setZoom] = useState<number>(1.0)
   const [isSaving, setIsSaving] = useState(false)
   const [savedToast, setSavedToast] = useState(false)
 
-  const pages = sheetLayout.pages || []
-  const pins = sheetLayout.pins || []
-  const modularSections = (sheetLayout.modularSections || []).filter((s) => s.enabled)
+  const modularSections = (sheetLayout.modularSections || DEFAULT_MODULAR_SECTIONS).filter(
+    (s) => s.enabled
+  )
 
   // Salvar Ficha
   const handleSave = async (): Promise<void> => {
@@ -107,7 +120,10 @@ export default function CharacterSheetModal({
     setIsSaving(true)
 
     const updatedSheetData: CharacterSheetData = {
-      attributes,
+      attributes: {
+        ...attributes,
+        character_name: characterName.trim() || character.name
+      },
       lists,
       notes: characterNotes
     }
@@ -144,11 +160,23 @@ export default function CharacterSheetModal({
     }
   }
 
-  // Modificar um atributo fixo (vindo do overlay ou cabeçalho)
+  // Modificar um atributo fixo (vindo da ficha ou cabeçalho)
   const handleUpdateAttribute = (key: string, value: string | number | boolean): void => {
     setAttributes((prev) => ({
       ...prev,
       [key]: value
+    }))
+    if (key === 'character_name' && typeof value === 'string' && value.trim()) {
+      setCharacterName(value)
+    }
+  }
+
+  // Modificar nome do personagem e sincronizar chave
+  const handleNameChange = (newName: string): void => {
+    setCharacterName(newName)
+    setAttributes((prev) => ({
+      ...prev,
+      character_name: newName
     }))
   }
 
@@ -158,14 +186,6 @@ export default function CharacterSheetModal({
       ...prev,
       [sectionId]: newItems
     }))
-  }
-
-  // Rolar teste / atributo com d20
-  const handleRollField = (pin: SheetLayoutPin, value: string | number | boolean): void => {
-    const num = Number(value) || 0
-    const sign = num >= 0 ? `+${num}` : `${num}`
-    const formula = `1d20${sign}`
-    onRoll?.(formula, `Teste de ${pin.label || pin.key}`)
   }
 
   // Atributos de atalho para o topo (HP, CA, Nível)
@@ -205,7 +225,7 @@ export default function CharacterSheetModal({
                   type="text"
                   disabled={!canEdit}
                   value={characterName}
-                  onChange={(e) => setCharacterName(e.target.value)}
+                  onChange={(e) => handleNameChange(e.target.value)}
                   className="bg-transparent border-b border-transparent hover:border-neutral-700 focus:border-vtt-golden text-lg font-bold font-cinzel text-white outline-none px-1 transition-colors"
                 />
                 <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-neutral-800 text-vtt-golden border border-neutral-700">
@@ -296,10 +316,10 @@ export default function CharacterSheetModal({
           </div>
         </div>
 
-        {/* ── BARRA DE ABAS DA FICHA (HÍBRIDA) ── */}
+        {/* ── BARRA DE ABAS DA FICHA ── */}
         <div className="bg-neutral-950 border-b border-neutral-800 px-4 flex items-center justify-between shrink-0 overflow-x-auto">
           <div className="flex items-center gap-1 py-1.5">
-            {/* Aba da Ficha Visual (Backdrop PDF / Imagem) */}
+            {/* Aba da Ficha Principal (Campos Customizados) */}
             <button
               type="button"
               onClick={() => setActiveTab('sheet')}
@@ -310,12 +330,7 @@ export default function CharacterSheetModal({
               }`}
             >
               <Scroll className="w-4 h-4" />
-              <span>Ficha Visual</span>
-              {pages.length > 0 && (
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                  {pages.length}p
-                </span>
-              )}
+              <span>Ficha Principal</span>
             </button>
 
             {/* Abas Modulares Dinâmicas */}
@@ -348,96 +363,26 @@ export default function CharacterSheetModal({
               </button>
             ))}
           </div>
-
-          {/* Controles da Ficha Visual (Páginas e Zoom) */}
-          {activeTab === 'sheet' && pages.length > 0 && (
-            <div className="flex items-center gap-3 py-1">
-              {/* Navegação de Páginas */}
-              <div className="flex items-center gap-1 bg-neutral-900 px-2 py-1 rounded-lg border border-neutral-800">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="p-1 text-neutral-400 hover:text-white disabled:opacity-30 cursor-pointer"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <span className="text-xs font-mono font-bold text-neutral-200 px-1">
-                  Pág {currentPage} / {pages.length}
-                </span>
-                <button
-                  type="button"
-                  disabled={currentPage >= pages.length}
-                  onClick={() => setCurrentPage((p) => Math.min(pages.length, p + 1))}
-                  className="p-1 text-neutral-400 hover:text-white disabled:opacity-30 cursor-pointer"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Controles de Zoom */}
-              <div className="flex items-center gap-1 bg-neutral-900 p-1 rounded-lg border border-neutral-800">
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.max(0.6, z - 0.15))}
-                  className="p-1 text-neutral-400 hover:text-white cursor-pointer"
-                >
-                  <ZoomOut className="w-3.5 h-3.5" />
-                </button>
-                <span className="text-[11px] font-mono text-neutral-300 w-9 text-center">
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setZoom((z) => Math.min(1.5, z + 0.15))}
-                  className="p-1 text-neutral-400 hover:text-white cursor-pointer"
-                >
-                  <ZoomIn className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setZoom(1.0)}
-                  className="p-1 text-neutral-400 hover:text-white cursor-pointer ml-1"
-                >
-                  <Maximize className="w-3 h-3" />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* ── CONTEÚDO PRINCIPAL (SCROLLÁVEL) ── */}
         <div className="flex-1 overflow-auto bg-neutral-950/90 p-4 sm:p-6 flex flex-col">
-          {/* ABA: FICHA VISUAL INTERATIVA */}
+          {/* ABA: FICHA DO PERSONAGEM (CAMPOS CUSTOMIZADOS) */}
           {activeTab === 'sheet' && (
-            <div className="flex-1 flex flex-col items-center justify-start">
-              {pages.length > 0 ? (
-                <SheetPinOverlay
-                  pageImage={pages[currentPage - 1]}
-                  pins={pins}
-                  currentPage={currentPage}
-                  values={attributes}
-                  isDesignerMode={false}
-                  onChangeValue={handleUpdateAttribute}
-                  onRollField={handleRollField}
-                  zoom={zoom}
-                />
-              ) : (
-                /* Fallback caso o sistema ainda não tenha feito upload do PDF/Imagem */
-                <div className="flex flex-col items-center justify-center py-20 gap-4 text-center max-w-md">
-                  <div className="w-16 h-16 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center text-vtt-golden">
-                    <Scroll className="w-8 h-8" />
-                  </div>
-                  <div>
-                    <h4 className="text-base font-bold text-white mb-1">
-                      Nenhum layout de ficha em PDF/Imagem configurado
-                    </h4>
-                    <p className="text-xs text-neutral-400 leading-relaxed">
-                      O criador deste sistema ainda não configurou um PDF ou imagem de fundo para a ficha visual. Você pode usar as abas modulares acima (Inventário, Magias, etc.) para gerenciar seu personagem normalmente.
-                    </p>
-                  </div>
-                </div>
-              )}
+            <div className="flex-1 overflow-y-auto pr-1">
+              <CustomSheetRenderer
+                sections={sections}
+                system={system}
+                values={attributes}
+                canEdit={canEdit}
+                onChangeValue={handleUpdateAttribute}
+                onRollField={(label, value, formula) => {
+                  const num = Number(value) || 0
+                  const sign = num >= 0 ? `+${num}` : `${num}`
+                  const rollFormula = formula || `1d20${sign}`
+                  onRoll?.(rollFormula, `Teste de ${label}`)
+                }}
+              />
             </div>
           )}
 

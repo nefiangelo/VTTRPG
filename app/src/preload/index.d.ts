@@ -164,10 +164,34 @@ export interface ModularSectionConfig {
   enabled: boolean
 }
 
+export type SheetFieldWidth = '1/4' | '1/3' | '1/2' | '2/3' | '3/4' | 'full'
+
+export interface SheetCustomField {
+  id: string
+  key: string
+  label: string
+  type: 'text' | 'number' | 'select' | 'reference' | 'textarea' | 'checkbox'
+  referenceType?: ContentType | 'custom'
+  options?: string[]
+  width: SheetFieldWidth
+  defaultValue?: string | number | boolean
+  placeholder?: string
+  isModifier?: boolean
+  formula?: string
+}
+
+export interface SheetCustomSection {
+  id: string
+  title: string
+  description?: string
+  fields: SheetCustomField[]
+}
+
 export interface SheetLayoutConfig {
-  type: 'hybrid' | 'modular'
-  pages: string[] // Data URLs ou caminhos das imagens das páginas
-  pins: SheetLayoutPin[]
+  type?: 'hybrid' | 'modular' | 'custom'
+  pages?: string[] // Data URLs ou caminhos das imagens das páginas (legado)
+  pins?: SheetLayoutPin[]
+  sections?: SheetCustomSection[]
   modularSections: ModularSectionConfig[]
 }
 

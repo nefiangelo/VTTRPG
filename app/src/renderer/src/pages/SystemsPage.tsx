@@ -7,14 +7,13 @@ import { useCampaigns } from '../context/CampaignContext'
 import type {
   RpgSystemFull,
   SystemStructure,
-  AttributeGroup,
   AttributeField,
   ContentType,
   CreateRpgSystemPayload,
   UpdateRpgSystemPayload,
   SheetLayoutConfig,
 } from '../../../preload/index.d'
-import { CONTENT_TYPE_LIST, DEFAULT_CONTENT_FIELDS, DEFAULT_MODULAR_SECTIONS } from '../utils/contentPresets'
+import { CONTENT_TYPE_LIST, DEFAULT_CONTENT_FIELDS, DEFAULT_MODULAR_SECTIONS, DEFAULT_CUSTOM_SHEET_SECTIONS } from '../utils/contentPresets'
 import SheetLayoutBuilder from '../components/sheet/SheetLayoutBuilder'
 
 /* ─── Helpers ─────────────────────────────────────────────────── */
@@ -382,177 +381,6 @@ function FieldRow({
   )
 }
 
-/* ─── Attribute Group Card ───────────────────────────────────── */
-function GroupCard({
-  group,
-  index,
-  onUpdate,
-  onRemove,
-  onDragStartGroup,
-  onDragOverGroup,
-  onDragLeaveGroup,
-  onDropGroup,
-  onDragEndGroup,
-  isDraggingGroup,
-  isOverGroup,
-  onFieldDragStart,
-  onFieldDragOver,
-  onFieldDragLeave,
-  onFieldDrop,
-  onFieldDragEnd,
-  draggedFieldInfo,
-  overFieldInfo,
-  onDropFieldInEmptyGroup,
-}: {
-  group: AttributeGroup
-  index: number
-  onUpdate: (g: AttributeGroup) => void
-  onRemove: () => void
-  onDragStartGroup?: (e: React.DragEvent, index: number) => void
-  onDragOverGroup?: (e: React.DragEvent, index: number) => void
-  onDragLeaveGroup?: (e: React.DragEvent) => void
-  onDropGroup?: (e: React.DragEvent, index: number) => void
-  onDragEndGroup?: (e: React.DragEvent) => void
-  isDraggingGroup?: boolean
-  isOverGroup?: boolean
-  onFieldDragStart?: (e: React.DragEvent, groupId: string, fieldIndex: number) => void
-  onFieldDragOver?: (e: React.DragEvent, groupId: string, fieldIndex: number) => void
-  onFieldDragLeave?: (e: React.DragEvent) => void
-  onFieldDrop?: (e: React.DragEvent, groupId: string, fieldIndex: number) => void
-  onFieldDragEnd?: (e: React.DragEvent) => void
-  draggedFieldInfo?: { groupId: string; fieldIndex: number } | null
-  overFieldInfo?: { groupId: string; fieldIndex: number } | null
-  onDropFieldInEmptyGroup?: (e: React.DragEvent, groupId: string) => void
-}): React.JSX.Element {
-  const [isHandlePressed, setIsHandlePressed] = useState(false)
-
-  const addField = (): void => {
-    onUpdate({
-      ...group,
-      fields: [...group.fields, { id: uid(), key: uid(), label: '', type: 'number' }],
-    })
-  }
-
-  const updateField = (i: number, f: AttributeField): void => {
-    const fields = [...group.fields]
-    fields[i] = { ...f, id: f.id || fields[i]?.id || uid() }
-    onUpdate({ ...group, fields })
-  }
-
-  const removeField = (i: number): void => {
-    onUpdate({ ...group, fields: group.fields.filter((_, idx) => idx !== i) })
-  }
-
-  return (
-    <div
-      draggable={isHandlePressed}
-      onDragStart={e => {
-        onDragStartGroup?.(e, index)
-      }}
-      onDragOver={e => {
-        if (onDragOverGroup) {
-          e.preventDefault()
-          e.dataTransfer.dropEffect = 'move'
-          onDragOverGroup(e, index)
-        }
-      }}
-      onDragLeave={e => {
-        onDragLeaveGroup?.(e)
-      }}
-      onDrop={e => {
-        setIsHandlePressed(false)
-        onDropGroup?.(e, index)
-      }}
-      onDragEnd={e => {
-        setIsHandlePressed(false)
-        onDragEndGroup?.(e)
-      }}
-      className={`border rounded-xl bg-vtt-dark overflow-hidden transition-all duration-150 ${isDraggingGroup
-        ? 'opacity-40 border-dashed border-vtt-red/60 scale-[0.99]'
-        : isOverGroup
-          ? 'border-vtt-red ring-2 ring-vtt-red/50 shadow-[0_0_16px_rgba(211,47,47,0.3)]'
-          : 'border-vtt-dark-gray'
-        }`}
-    >
-      {/* Group header */}
-      <div className="flex items-center gap-3 px-4 py-3 bg-vtt-dark-gray/30 border-b border-vtt-dark-gray">
-        <div
-          onMouseDown={() => setIsHandlePressed(true)}
-          onMouseUp={() => setIsHandlePressed(false)}
-          className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-neutral-500 hover:text-vtt-light transition-colors select-none flex items-center justify-center shrink-0"
-          title="Arraste para reorganizar grupo"
-        >
-          <IconGrip />
-        </div>
-        <input
-          type="text"
-          value={group.label}
-          onChange={e => onUpdate({ ...group, label: e.target.value })}
-          placeholder="Nome do grupo (ex: Atributos Principais)"
-          className="flex-1 bg-transparent text-vtt-light font-semibold text-sm
-                     placeholder:text-neutral-500 outline-none border-b border-transparent
-                     focus:border-vtt-green transition-colors"
-        />
-        <button
-          type="button"
-          onClick={onRemove}
-          className="text-neutral-500 hover:text-vtt-red transition-colors cursor-pointer"
-          title="Remover grupo"
-        >
-          <IconTrash />
-        </button>
-      </div>
-
-      {/* Fields */}
-      <div className="flex flex-col gap-2 p-4">
-        {group.fields.length === 0 ? (
-          <div
-            onDragOver={e => {
-              if (draggedFieldInfo) {
-                e.preventDefault()
-                e.dataTransfer.dropEffect = 'move'
-              }
-            }}
-            onDrop={e => {
-              e.preventDefault()
-              onDropFieldInEmptyGroup?.(e, group.id)
-            }}
-            className="text-neutral-500 text-xs text-center py-4 border border-dashed border-vtt-dark-gray rounded-lg transition-colors hover:border-vtt-red/50"
-          >
-            Nenhum campo ainda. Adicione abaixo ou arraste campos para cá.
-          </div>
-        ) : (
-          group.fields.map((f, i) => (
-            <FieldRow
-              key={f.id || (f.key ? `${f.key}-${i}` : String(i))}
-              field={f}
-              index={i}
-              onUpdate={nf => updateField(i, nf)}
-              onRemove={() => removeField(i)}
-              onDragStart={e => onFieldDragStart?.(e, group.id, i)}
-              onDragOver={e => onFieldDragOver?.(e, group.id, i)}
-              onDragLeave={onFieldDragLeave}
-              onDrop={e => onFieldDrop?.(e, group.id, i)}
-              onDragEnd={onFieldDragEnd}
-              isDragging={draggedFieldInfo?.groupId === group.id && draggedFieldInfo?.fieldIndex === i}
-              isOver={overFieldInfo?.groupId === group.id && overFieldInfo?.fieldIndex === i}
-            />
-          ))
-        )}
-
-        <button
-          type="button"
-          onClick={addField}
-          className="mt-1 flex items-center gap-1.5 text-xs text-vtt-green hover:text-vtt-light-green
-                     transition-colors font-medium cursor-pointer w-fit"
-        >
-          <IconPlus /> Adicionar campo
-        </button>
-      </div>
-    </div>
-  )
-}
-
 /* ─── System Form Modal ──────────────────────────────────────── */
 interface SystemFormProps {
   initial?: RpgSystemFull
@@ -566,14 +394,6 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const [version, setVersion] = useState(initial?.version ?? '')
   const [genre, setGenre] = useState(initial?.genre ?? '')
   const [description, setDescription] = useState(initial?.description ?? '')
-
-  const [groups, setGroups] = useState<AttributeGroup[]>(() => {
-    return (initial?.structure?.attributeGroups ?? []).map(g => ({
-      ...g,
-      id: g.id || uid(),
-      fields: (g.fields ?? []).map(f => ({ ...f, id: f.id || uid() })),
-    }))
-  })
   const [contentFields, setContentFields] = useState<Partial<Record<ContentType, AttributeField[]>>>(() => {
     const raw = initial?.structure?.contentFields ?? {}
     const result: Partial<Record<ContentType, AttributeField[]>> = {}
@@ -585,16 +405,34 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     return result
   })
   const [sheetLayout, setSheetLayout] = useState<SheetLayoutConfig>(() => {
-    return (
-      initial?.structure?.sheetLayout ?? {
-        type: 'hybrid',
-        pages: [],
-        pins: [],
-        modularSections: DEFAULT_MODULAR_SECTIONS,
+    if (initial?.structure?.sheetLayout?.sections && initial.structure.sheetLayout.sections.length > 0) {
+      return initial.structure.sheetLayout
+    }
+    if (initial?.structure?.attributeGroups && initial.structure.attributeGroups.length > 0) {
+      return {
+        type: 'custom',
+        sections: initial.structure.attributeGroups.map((g) => ({
+          id: g.id || uid(),
+          title: g.label,
+          fields: (g.fields || []).map((f) => ({
+            id: f.id || uid(),
+            key: f.key,
+            label: f.label,
+            type: (f.type === 'list' ? 'reference' : f.type) as any,
+            width: '1/2' as const,
+            placeholder: f.placeholder
+          }))
+        })),
+        modularSections: initial.structure.sheetLayout?.modularSections || DEFAULT_MODULAR_SECTIONS
       }
-    )
+    }
+    return {
+      type: 'custom',
+      sections: DEFAULT_CUSTOM_SHEET_SECTIONS,
+      modularSections: DEFAULT_MODULAR_SECTIONS
+    }
   })
-  const [activeBuilderTab, setActiveBuilderTab] = useState<'content' | 'character' | 'sheet_layout'>('content')
+  const [activeBuilderTab, setActiveBuilderTab] = useState<'content' | 'sheet_layout'>('content')
   const [isGeneralInfoOpen, setIsGeneralInfoOpen] = useState(true)
   const [selectedContentType, setSelectedContentType] = useState<ContentType>('class')
   const [error, setError] = useState<string | null>(null)
@@ -640,133 +478,6 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
   const handleContentFieldDragEnd = (): void => {
     setDraggedContentField(null)
     setOverContentField(null)
-  }
-
-  /* ─── Groups DnD ───────────────────────────────────────────── */
-  const [draggedGroupIndex, setDraggedGroupIndex] = useState<number | null>(null)
-  const [overGroupIndex, setOverGroupIndex] = useState<number | null>(null)
-
-  const handleGroupDragStart = (_e: React.DragEvent, index: number): void => {
-    setDraggedGroupIndex(index)
-  }
-
-  const handleGroupDragOver = (e: React.DragEvent, index: number): void => {
-    if (draggedGroupIndex === null || draggedGroupIndex === index) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (overGroupIndex !== index) {
-      setOverGroupIndex(index)
-    }
-  }
-
-  const handleGroupDragLeave = (): void => {
-    setOverGroupIndex(null)
-  }
-
-  const handleGroupDrop = (e: React.DragEvent, targetIndex: number): void => {
-    e.preventDefault()
-    if (draggedGroupIndex !== null && draggedGroupIndex !== targetIndex) {
-      setGroups(prev => reorder(prev, draggedGroupIndex, targetIndex))
-    }
-    setDraggedGroupIndex(null)
-    setOverGroupIndex(null)
-  }
-
-  const handleGroupDragEnd = (): void => {
-    setDraggedGroupIndex(null)
-    setOverGroupIndex(null)
-  }
-
-  /* ─── Group Fields DnD ─────────────────────────────────────── */
-  const [draggedGroupField, setDraggedGroupField] = useState<{ groupId: string; fieldIndex: number } | null>(null)
-  const [overGroupField, setOverGroupField] = useState<{ groupId: string; fieldIndex: number } | null>(null)
-
-  const handleFieldDragStart = (_e: React.DragEvent, groupId: string, fieldIndex: number): void => {
-    setDraggedGroupField({ groupId, fieldIndex })
-  }
-
-  const handleFieldDragOver = (e: React.DragEvent, groupId: string, fieldIndex: number): void => {
-    if (!draggedGroupField) return
-    if (draggedGroupField.groupId === groupId && draggedGroupField.fieldIndex === fieldIndex) return
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    if (overGroupField?.groupId !== groupId || overGroupField?.fieldIndex !== fieldIndex) {
-      setOverGroupField({ groupId, fieldIndex })
-    }
-  }
-
-  const handleFieldDragLeave = (): void => {
-    setOverGroupField(null)
-  }
-
-  const handleFieldDrop = (e: React.DragEvent, targetGroupId: string, targetFieldIndex: number): void => {
-    e.preventDefault()
-    if (draggedGroupField) {
-      const { groupId: srcGroupId, fieldIndex: srcIndex } = draggedGroupField
-      if (srcGroupId === targetGroupId) {
-        if (srcIndex !== targetFieldIndex) {
-          setGroups(prev =>
-            prev.map(g => {
-              if (g.id !== srcGroupId) return g
-              return { ...g, fields: reorder(g.fields, srcIndex, targetFieldIndex) }
-            })
-          )
-        }
-      } else {
-        setGroups(prev => {
-          const next = prev.map(g => ({ ...g, fields: [...g.fields] }))
-          const srcGroup = next.find(g => g.id === srcGroupId)
-          const tgtGroup = next.find(g => g.id === targetGroupId)
-          if (srcGroup && tgtGroup) {
-            const [moved] = srcGroup.fields.splice(srcIndex, 1)
-            if (moved) {
-              tgtGroup.fields.splice(targetFieldIndex, 0, moved)
-            }
-          }
-          return next
-        })
-      }
-    }
-    setDraggedGroupField(null)
-    setOverGroupField(null)
-  }
-
-  const handleFieldDragEnd = (): void => {
-    setDraggedGroupField(null)
-    setOverGroupField(null)
-  }
-
-  const handleDropFieldInEmptyGroup = (e: React.DragEvent, targetGroupId: string): void => {
-    e.preventDefault()
-    if (draggedGroupField) {
-      const { groupId: srcGroupId, fieldIndex: srcIndex } = draggedGroupField
-      setGroups(prev => {
-        const next = prev.map(g => ({ ...g, fields: [...g.fields] }))
-        const srcGroup = next.find(g => g.id === srcGroupId)
-        const tgtGroup = next.find(g => g.id === targetGroupId)
-        if (srcGroup && tgtGroup) {
-          const [moved] = srcGroup.fields.splice(srcIndex, 1)
-          if (moved) {
-            tgtGroup.fields.push(moved)
-          }
-        }
-        return next
-      })
-    }
-    setDraggedGroupField(null)
-    setOverGroupField(null)
-  }
-
-  const addGroup = (): void => {
-    setGroups(prev => [...prev, { id: uid(), label: '', fields: [] }])
-  }
-
-  const updateGroup = (i: number, g: AttributeGroup): void => {
-    setGroups(prev => { const next = [...prev]; next[i] = g; return next })
-  }
-
-  const removeGroup = (i: number): void => {
-    setGroups(prev => prev.filter((_, idx) => idx !== i))
   }
 
   const addContentField = (): void => {
@@ -822,11 +533,27 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     setError(null)
     setLoading(true)
 
+    const sectionsToSave = sheetLayout.sections || DEFAULT_CUSTOM_SHEET_SECTIONS
     const structure: SystemStructure = {
       ...(initial?.structure ?? {}),
-      attributeGroups: groups,
       contentFields,
-      sheetLayout,
+      sheetLayout: {
+        ...sheetLayout,
+        type: 'custom',
+        sections: sectionsToSave,
+        modularSections: sheetLayout.modularSections || DEFAULT_MODULAR_SECTIONS
+      },
+      attributeGroups: sectionsToSave.map(s => ({
+        id: s.id,
+        label: s.title,
+        fields: s.fields.map(f => ({
+          id: f.id,
+          key: f.key,
+          label: f.label,
+          type: f.type === 'reference' ? 'text' : (f.type as any),
+          placeholder: f.placeholder
+        }))
+      }))
     }
 
     if (initial) {
@@ -991,30 +718,16 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setActiveBuilderTab('character')}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'character'
-                        ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
-                        : 'text-neutral-500 hover:text-vtt-light'
-                        }`}
-                    >
-                      <IconCharacter />
-                      <span>Ficha de Personagem</span>
-                      <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                        {groups.length}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => setActiveBuilderTab('sheet_layout')}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${activeBuilderTab === 'sheet_layout'
                         ? 'bg-vtt-dark-gray text-vtt-golden shadow-sm'
                         : 'text-neutral-500 hover:text-vtt-light'
                         }`}
                     >
-                      <IconScroll />
-                      <span>Layout Visual da Ficha (PDF)</span>
+                      <IconCharacter />
+                      <span>Ficha de Personagem (Layout & Campos)</span>
                       <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-black/40 font-mono">
-                        {(sheetLayout.pins || []).length}
+                        {(sheetLayout.sections || DEFAULT_CUSTOM_SHEET_SECTIONS).length} seções
                       </span>
                     </button>
                   </div>
@@ -1133,57 +846,11 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
                   </div>
                 )}
 
-                {/* TAB: CHARACTER ATTRIBUTE GROUPS */}
-                {activeBuilderTab === 'character' && (
-                  <div className="flex flex-col gap-4 mt-2">
-                    <div className="flex items-center justify-between">
-                      <button type="button" onClick={addGroup}
-                        className="flex items-center gap-1.5 text-xs font-semibold text-vtt-golden hover:text-[#FBE8A6]
-                                 transition-colors cursor-pointer px-3 py-1.5 rounded-lg border border-vtt-golden/30
-                                 hover:border-vtt-golden bg-vtt-golden/10 hover:bg-vtt-golden/20 ml-auto">
-                        <IconPlus /> Novo Grupo
-                      </button>
-                    </div>
-
-                    {groups.length === 0 && (
-                      <div className="text-center py-8 text-neutral-500 text-sm border border-dashed border-vtt-dark-gray rounded-xl">
-                        Nenhum grupo definido.
-                      </div>
-                    )}
-
-                    {groups.map((g, i) => (
-                      <GroupCard
-                        key={g.id || String(i)}
-                        group={g}
-                        index={i}
-                        onUpdate={ng => updateGroup(i, ng)}
-                        onRemove={() => removeGroup(i)}
-                        onDragStartGroup={handleGroupDragStart}
-                        onDragOverGroup={draggedGroupIndex !== null ? handleGroupDragOver : undefined}
-                        onDragLeaveGroup={handleGroupDragLeave}
-                        onDropGroup={draggedGroupIndex !== null ? handleGroupDrop : undefined}
-                        onDragEndGroup={handleGroupDragEnd}
-                        isDraggingGroup={draggedGroupIndex === i}
-                        isOverGroup={overGroupIndex === i}
-                        onFieldDragStart={handleFieldDragStart}
-                        onFieldDragOver={handleFieldDragOver}
-                        onFieldDragLeave={handleFieldDragLeave}
-                        onFieldDrop={handleFieldDrop}
-                        onFieldDragEnd={handleFieldDragEnd}
-                        draggedFieldInfo={draggedGroupField}
-                        overFieldInfo={overGroupField}
-                        onDropFieldInEmptyGroup={handleDropFieldInEmptyGroup}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* TAB: CHARACTER SHEET PDF LAYOUT BUILDER */}
+                {/* TAB: CHARACTER SHEET CUSTOM LAYOUT BUILDER */}
                 {activeBuilderTab === 'sheet_layout' && (
                   <div className="mt-2">
                     <SheetLayoutBuilder
                       sheetLayout={sheetLayout}
-                      attributeGroups={groups}
                       onChangeLayout={setSheetLayout}
                     />
                   </div>

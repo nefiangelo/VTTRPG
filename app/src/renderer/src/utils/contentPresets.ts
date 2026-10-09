@@ -108,3 +108,62 @@ export const DEFAULT_MODULAR_SECTIONS: import('../../../preload/index.d').Modula
   { id: 'features', title: 'Habilidades & Talentos', contentType: 'feat', enabled: true },
   { id: 'notes', title: 'Biografia & Anotações', enabled: true }
 ]
+
+export const DEFAULT_CUSTOM_SHEET_SECTIONS: import('../../../preload/index.d').SheetCustomSection[] = [
+  {
+    id: 'sec-general',
+    title: 'Informações Gerais & Origem',
+    description: 'Identidade básica, linhagem e histórico do personagem',
+    fields: [
+      { id: 'f-name', key: 'character_name', label: 'Nome do Personagem', type: 'text', width: '1/2', placeholder: 'Ex: Gandalf, Conan...' },
+      { id: 'f-player', key: 'player_name', label: 'Nome do Jogador', type: 'text', width: '1/2', placeholder: 'Ex: Nefi Angelo' },
+      { id: 'f-class', key: 'class', label: 'Classe', type: 'reference', referenceType: 'class', width: '1/3', placeholder: 'Selecione ou digite a classe...' },
+      { id: 'f-race', key: 'race', label: 'Raça / Espécie', type: 'reference', referenceType: 'race', width: '1/3', placeholder: 'Selecione ou digite a raça...' },
+      { id: 'f-bg', key: 'background', label: 'Antecedente / Histórico', type: 'reference', referenceType: 'background', width: '1/3', placeholder: 'Selecione o antecedente...' },
+      { id: 'f-level', key: 'level', label: 'Nível', type: 'number', width: '1/4', defaultValue: 1 },
+      { id: 'f-align', key: 'alignment', label: 'Alinhamento', type: 'text', width: '1/4', placeholder: 'Neutro e Bom' },
+      { id: 'f-xp', key: 'xp', label: 'Pontos de Experiência (XP)', type: 'number', width: '1/4', defaultValue: 0 },
+      { id: 'f-prof', key: 'prof_bonus', label: 'Bônus de Proficiência', type: 'number', width: '1/4', defaultValue: 2, isModifier: true }
+    ]
+  },
+  {
+    id: 'sec-abilities',
+    title: 'Atributos Principais',
+    description: 'Capacidades físicas e mentais fundamentais',
+    fields: [
+      { id: 'f-str', key: 'strength', label: 'Força (FOR)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
+      { id: 'f-dex', key: 'dexterity', label: 'Destreza (DES)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
+      { id: 'f-con', key: 'constitution', label: 'Constituição (CON)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
+      { id: 'f-int', key: 'intelligence', label: 'Inteligência (INT)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
+      { id: 'f-wis', key: 'wisdom', label: 'Sabedoria (SAB)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
+      { id: 'f-cha', key: 'charisma', label: 'Carisma (CAR)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true }
+    ]
+  },
+  {
+    id: 'sec-combat',
+    title: 'Combate & Sobrevivência',
+    description: 'Defesa, vitalidade e estatísticas de combate',
+    fields: [
+      { id: 'f-ac', key: 'armor_class', label: 'Classe de Armadura (CA)', type: 'number', width: '1/4', defaultValue: 10 },
+      { id: 'f-init', key: 'initiative', label: 'Iniciativa', type: 'number', width: '1/4', defaultValue: 0, isModifier: true },
+      { id: 'f-speed', key: 'speed', label: 'Deslocamento', type: 'text', width: '1/4', defaultValue: '9m / 30ft' },
+      { id: 'f-pass-perc', key: 'passive_perception', label: 'Percepção Passiva', type: 'number', width: '1/4', defaultValue: 10 },
+      { id: 'f-hp-cur', key: 'hp_current', label: 'PV Atual', type: 'number', width: '1/3', defaultValue: 10 },
+      { id: 'f-hp-max', key: 'hp_max', label: 'PV Máximo', type: 'number', width: '1/3', defaultValue: 10 },
+      { id: 'f-hp-tmp', key: 'hp_temp', label: 'PV Temporário', type: 'number', width: '1/3', defaultValue: 0 },
+      { id: 'f-hit-dice', key: 'hit_dice', label: 'Dados de Vida', type: 'text', width: '1/2', placeholder: '1d10' },
+      { id: 'f-death-saves', key: 'death_saves', label: 'Salvaguardas Contra a Morte', type: 'text', width: '1/2', placeholder: 'Sucessos: O O O / Falhas: X O O' }
+    ]
+  },
+  {
+    id: 'sec-traits',
+    title: 'Personalidade & Características Especiais',
+    description: 'Traços, proficiências e habilidades passivas',
+    fields: [
+      { id: 'f-personality', key: 'personality_traits', label: 'Traços de Personalidade & Vínculos', type: 'textarea', width: '1/2', placeholder: 'Como seu personagem age e pensa...' },
+      { id: 'f-profs', key: 'proficiencies_languages', label: 'Proficiências & Idiomas', type: 'textarea', width: '1/2', placeholder: 'Armas marciais, armadura leve, Comum, Élfico...' },
+      { id: 'f-features', key: 'special_features', label: 'Características de Linhagem & Habilidades Notáveis', type: 'textarea', width: 'full', placeholder: 'Visão no Escuro, Sentido Divino, etc...' }
+    ]
+  }
+]
+
