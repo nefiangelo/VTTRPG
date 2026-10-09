@@ -164,7 +164,7 @@ export interface ModularSectionConfig {
   enabled: boolean
 }
 
-export type SheetFieldWidth = '1/4' | '1/3' | '1/2' | '2/3' | '3/4' | 'full'
+export type SheetFieldWidth = '1/4' | '1/3' | '1/2' | '2/3' | '3/4' | 'full' | string
 
 export interface SheetCustomField {
   id: string
@@ -174,6 +174,8 @@ export interface SheetCustomField {
   referenceType?: ContentType | 'custom'
   options?: string[]
   width: SheetFieldWidth
+  customWidth?: number // porcentagem livre de 10 a 100%
+  customHeight?: number // altura livre em pixels
   defaultValue?: string | number | boolean
   placeholder?: string
   isModifier?: boolean
@@ -184,11 +186,15 @@ export interface SheetCustomSection {
   id: string
   title: string
   description?: string
+  width?: SheetFieldWidth
+  customWidth?: number // porcentagem livre de 20 a 100% para seções lado a lado
+  customHeight?: number // altura livre em pixels
   fields: SheetCustomField[]
 }
 
 export interface SheetLayoutConfig {
   type?: 'hybrid' | 'modular' | 'custom'
+  theme?: string
   pages?: string[] // Data URLs ou caminhos das imagens das páginas (legado)
   pins?: SheetLayoutPin[]
   sections?: SheetCustomSection[]

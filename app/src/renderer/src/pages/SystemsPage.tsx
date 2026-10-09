@@ -405,12 +405,24 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     return result
   })
   const [sheetLayout, setSheetLayout] = useState<SheetLayoutConfig>(() => {
+    const fallbackTheme =
+      initial?.structure?.sheetLayout?.theme ||
+      (initial?.genre?.toLowerCase().includes('cyber') || initial?.genre?.toLowerCase().includes('sci-fi')
+        ? 'cyberpunk'
+        : initial?.genre?.toLowerCase().includes('horror')
+          ? 'horror'
+          : 'dnd')
+
     if (initial?.structure?.sheetLayout?.sections && initial.structure.sheetLayout.sections.length > 0) {
-      return initial.structure.sheetLayout
+      return {
+        ...initial.structure.sheetLayout,
+        theme: initial.structure.sheetLayout.theme || fallbackTheme
+      }
     }
     if (initial?.structure?.attributeGroups && initial.structure.attributeGroups.length > 0) {
       return {
         type: 'custom',
+        theme: fallbackTheme,
         sections: initial.structure.attributeGroups.map((g) => ({
           id: g.id || uid(),
           title: g.label,
@@ -428,6 +440,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
     }
     return {
       type: 'custom',
+      theme: fallbackTheme,
       sections: DEFAULT_CUSTOM_SHEET_SECTIONS,
       modularSections: DEFAULT_MODULAR_SECTIONS
     }
@@ -540,6 +553,7 @@ function SystemFormModal({ initial, userId, onClose, onSaved }: SystemFormProps)
       sheetLayout: {
         ...sheetLayout,
         type: 'custom',
+        theme: sheetLayout.theme || 'dnd',
         sections: sectionsToSave,
         modularSections: sheetLayout.modularSections || DEFAULT_MODULAR_SECTIONS
       },

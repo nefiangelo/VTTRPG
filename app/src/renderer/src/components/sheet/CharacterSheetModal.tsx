@@ -10,6 +10,7 @@ import type {
 import CustomSheetRenderer from './CustomSheetRenderer'
 import DynamicListTab from './DynamicListTab'
 import { DEFAULT_CUSTOM_SHEET_SECTIONS, DEFAULT_MODULAR_SECTIONS } from '../../utils/contentPresets'
+import { SHEET_THEME_LIST } from '../../utils/sheetThemes'
 import {
   FileText,
   Package,
@@ -21,7 +22,8 @@ import {
   User,
   Heart,
   Shield,
-  CheckCircle2
+  CheckCircle2,
+  Palette
 } from 'lucide-react'
 
 interface CharacterSheetModalProps {
@@ -109,6 +111,16 @@ export default function CharacterSheetModal({
   const [activeTab, setActiveTab] = useState<string>('sheet')
   const [isSaving, setIsSaving] = useState(false)
   const [savedToast, setSavedToast] = useState(false)
+  const [activeThemeId, setActiveThemeId] = useState<string>(() => {
+    return (
+      system?.structure?.sheetLayout?.theme ||
+      (system?.genre?.toLowerCase().includes('cyber') || system?.genre?.toLowerCase().includes('sci-fi')
+        ? 'cyberpunk'
+        : system?.genre?.toLowerCase().includes('horror')
+          ? 'horror'
+          : 'dnd')
+    )
+  })
 
   const modularSections = (sheetLayout.modularSections || DEFAULT_MODULAR_SECTIONS).filter(
     (s) => s.enabled
@@ -363,6 +375,23 @@ export default function CharacterSheetModal({
               </button>
             ))}
           </div>
+
+          {/* Seletor de Tema Visual da Ficha */}
+          <div className="flex items-center gap-1.5 py-1 px-2 border-l border-neutral-800 ml-auto shrink-0">
+            <Palette className="w-3.5 h-3.5 text-vtt-golden" />
+            <select
+              value={activeThemeId}
+              onChange={(e) => setActiveThemeId(e.target.value)}
+              className="bg-neutral-900 border border-neutral-700 hover:border-vtt-golden rounded-lg text-xs font-semibold text-vtt-golden py-1 px-2 outline-none cursor-pointer transition-colors"
+              title="Personalizar tema visual da ficha"
+            >
+              {SHEET_THEME_LIST.map((th) => (
+                <option key={th.id} value={th.id} className="bg-neutral-900 text-neutral-100 font-normal">
+                  {th.icon} {th.name.split('/')[0].trim()}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* ── CONTEÚDO PRINCIPAL (SCROLLÁVEL) ── */}
@@ -382,6 +411,7 @@ export default function CharacterSheetModal({
                   const rollFormula = formula || `1d20${sign}`
                   onRoll?.(rollFormula, `Teste de ${label}`)
                 }}
+                theme={activeThemeId}
               />
             </div>
           )}

@@ -109,60 +109,173 @@ export const DEFAULT_MODULAR_SECTIONS: import('../../../preload/index.d').Modula
   { id: 'notes', title: 'Biografia & Anotações', enabled: true }
 ]
 
+// Preset Oficial D&D 5e / 2024 (Baseado na ficha oficial e Imagem 2)
 export const DEFAULT_CUSTOM_SHEET_SECTIONS: import('../../../preload/index.d').SheetCustomSection[] = [
   {
-    id: 'sec-general',
-    title: 'Informações Gerais & Origem',
-    description: 'Identidade básica, linhagem e histórico do personagem',
+    id: 'sec-dnd-id',
+    title: 'Identidade & Antecedentes',
+    description: 'Registro oficial de identificação e linhagem do aventureiro',
     fields: [
-      { id: 'f-name', key: 'character_name', label: 'Nome do Personagem', type: 'text', width: '1/2', placeholder: 'Ex: Gandalf, Conan...' },
-      { id: 'f-player', key: 'player_name', label: 'Nome do Jogador', type: 'text', width: '1/2', placeholder: 'Ex: Nefi Angelo' },
-      { id: 'f-class', key: 'class', label: 'Classe', type: 'reference', referenceType: 'class', width: '1/3', placeholder: 'Selecione ou digite a classe...' },
-      { id: 'f-race', key: 'race', label: 'Raça / Espécie', type: 'reference', referenceType: 'race', width: '1/3', placeholder: 'Selecione ou digite a raça...' },
-      { id: 'f-bg', key: 'background', label: 'Antecedente / Histórico', type: 'reference', referenceType: 'background', width: '1/3', placeholder: 'Selecione o antecedente...' },
-      { id: 'f-level', key: 'level', label: 'Nível', type: 'number', width: '1/4', defaultValue: 1 },
-      { id: 'f-align', key: 'alignment', label: 'Alinhamento', type: 'text', width: '1/4', placeholder: 'Neutro e Bom' },
-      { id: 'f-xp', key: 'xp', label: 'Pontos de Experiência (XP)', type: 'number', width: '1/4', defaultValue: 0 },
-      { id: 'f-prof', key: 'prof_bonus', label: 'Bônus de Proficiência', type: 'number', width: '1/4', defaultValue: 2, isModifier: true }
+      { id: 'f-name', key: 'character_name', label: 'Character Name', type: 'text', width: 'full', placeholder: 'Nome do Personagem' },
+      { id: 'f-bg', key: 'background', label: 'Background', type: 'reference', referenceType: 'background', width: '1/2', placeholder: 'Antecedente...' },
+      { id: 'f-class', key: 'class', label: 'Class', type: 'reference', referenceType: 'class', width: '1/2', placeholder: 'Classe...' },
+      { id: 'f-species', key: 'species', label: 'Species', type: 'reference', referenceType: 'race', width: '1/2', placeholder: 'Espécie / Raça...' },
+      { id: 'f-subclass', key: 'subclass', label: 'Subclass', type: 'reference', referenceType: 'subclass', width: '1/2', placeholder: 'Subclasse...' },
+      { id: 'f-level', key: 'level', label: 'Level', type: 'number', width: '1/4', defaultValue: 1 },
+      { id: 'f-prof', key: 'prof_bonus', label: 'Proficiency', type: 'number', width: '1/4', defaultValue: 2, isModifier: true },
+      { id: 'f-ac', key: 'armor_class', label: 'Armor Class', type: 'number', width: '1/4', defaultValue: 14 },
+      { id: 'f-speed', key: 'speed', label: 'Speed', type: 'text', width: '1/4', defaultValue: '9m (30ft)' }
     ]
   },
   {
-    id: 'sec-abilities',
-    title: 'Atributos Principais',
-    description: 'Capacidades físicas e mentais fundamentais',
+    id: 'sec-dnd-abilities',
+    title: 'Atributos & Modificadores',
+    description: 'Valores centrais de habilidade e modificadores de rolagem com d20',
     fields: [
-      { id: 'f-str', key: 'strength', label: 'Força (FOR)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
-      { id: 'f-dex', key: 'dexterity', label: 'Destreza (DES)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
-      { id: 'f-con', key: 'constitution', label: 'Constituição (CON)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
+      { id: 'f-str', key: 'strength', label: 'Força (STR)', type: 'number', width: '1/3', defaultValue: 16, isModifier: true },
+      { id: 'f-dex', key: 'dexterity', label: 'Destreza (DEX)', type: 'number', width: '1/3', defaultValue: 14, isModifier: true },
+      { id: 'f-con', key: 'constitution', label: 'Constituição (CON)', type: 'number', width: '1/3', defaultValue: 15, isModifier: true },
       { id: 'f-int', key: 'intelligence', label: 'Inteligência (INT)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
-      { id: 'f-wis', key: 'wisdom', label: 'Sabedoria (SAB)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true },
-      { id: 'f-cha', key: 'charisma', label: 'Carisma (CAR)', type: 'number', width: '1/3', defaultValue: 10, isModifier: true }
+      { id: 'f-wis', key: 'wisdom', label: 'Sabedoria (WIS)', type: 'number', width: '1/3', defaultValue: 12, isModifier: true },
+      { id: 'f-cha', key: 'charisma', label: 'Carisma (CHA)', type: 'number', width: '1/3', defaultValue: 8, isModifier: true }
     ]
   },
   {
-    id: 'sec-combat',
-    title: 'Combate & Sobrevivência',
-    description: 'Defesa, vitalidade e estatísticas de combate',
+    id: 'sec-dnd-combat',
+    title: 'Vitalidade & Sobrevivência',
+    description: 'Pontos de vida, dados de vida e salvaguardas',
     fields: [
-      { id: 'f-ac', key: 'armor_class', label: 'Classe de Armadura (CA)', type: 'number', width: '1/4', defaultValue: 10 },
-      { id: 'f-init', key: 'initiative', label: 'Iniciativa', type: 'number', width: '1/4', defaultValue: 0, isModifier: true },
-      { id: 'f-speed', key: 'speed', label: 'Deslocamento', type: 'text', width: '1/4', defaultValue: '9m / 30ft' },
-      { id: 'f-pass-perc', key: 'passive_perception', label: 'Percepção Passiva', type: 'number', width: '1/4', defaultValue: 10 },
-      { id: 'f-hp-cur', key: 'hp_current', label: 'PV Atual', type: 'number', width: '1/3', defaultValue: 10 },
-      { id: 'f-hp-max', key: 'hp_max', label: 'PV Máximo', type: 'number', width: '1/3', defaultValue: 10 },
-      { id: 'f-hp-tmp', key: 'hp_temp', label: 'PV Temporário', type: 'number', width: '1/3', defaultValue: 0 },
-      { id: 'f-hit-dice', key: 'hit_dice', label: 'Dados de Vida', type: 'text', width: '1/2', placeholder: '1d10' },
-      { id: 'f-death-saves', key: 'death_saves', label: 'Salvaguardas Contra a Morte', type: 'text', width: '1/2', placeholder: 'Sucessos: O O O / Falhas: X O O' }
+      { id: 'f-hp-cur', key: 'hp_current', label: 'Current HP', type: 'number', width: '1/3', defaultValue: 28 },
+      { id: 'f-hp-max', key: 'hp_max', label: 'Max HP', type: 'number', width: '1/3', defaultValue: 28 },
+      { id: 'f-hp-temp', key: 'hp_temp', label: 'Temp HP', type: 'number', width: '1/3', defaultValue: 0 },
+      { id: 'f-hit-dice', key: 'hit_dice', label: 'Hit Dice', type: 'text', width: '1/2', defaultValue: '3d10' },
+      { id: 'f-death-saves', key: 'death_saves', label: 'Death Saves', type: 'text', width: '1/2', placeholder: 'Sucessos: O O O | Falhas: O O O' }
     ]
   },
   {
-    id: 'sec-traits',
-    title: 'Personalidade & Características Especiais',
-    description: 'Traços, proficiências e habilidades passivas',
+    id: 'sec-dnd-notes',
+    title: 'Características & Proficiências',
+    description: 'Talentos de classe, proficiências em armas e idiomas',
     fields: [
-      { id: 'f-personality', key: 'personality_traits', label: 'Traços de Personalidade & Vínculos', type: 'textarea', width: '1/2', placeholder: 'Como seu personagem age e pensa...' },
-      { id: 'f-profs', key: 'proficiencies_languages', label: 'Proficiências & Idiomas', type: 'textarea', width: '1/2', placeholder: 'Armas marciais, armadura leve, Comum, Élfico...' },
-      { id: 'f-features', key: 'special_features', label: 'Características de Linhagem & Habilidades Notáveis', type: 'textarea', width: 'full', placeholder: 'Visão no Escuro, Sentido Divino, etc...' }
+      { id: 'f-features', key: 'class_features', label: 'Features & Traits', type: 'textarea', width: '1/2', placeholder: 'Ação Ágil, Segundo Fôlego, Visão no Escuro...' },
+      { id: 'f-profs', key: 'proficiencies', label: 'Proficiencies & Languages', type: 'textarea', width: '1/2', placeholder: 'Armas Marciais, Armaduras Pesadas, Comum, Élfico...' }
+    ]
+  }
+]
+
+// Preset Oficial Vampiro: A Máscara / VTM White Wolf (Baseado na Imagem 1)
+export const VAMPIRE_SHEET_SECTIONS: import('../../../preload/index.d').SheetCustomSection[] = [
+  {
+    id: 'sec-vtm-id',
+    title: 'Identidade & Linhagem',
+    description: 'Nome, Clã, Geração e histórico do Membro',
+    fields: [
+      { id: 'v-name', key: 'character_name', label: 'Nome', type: 'text', width: '1/3', placeholder: 'Nome do Vampiro' },
+      { id: 'v-nature', key: 'nature', label: 'Natureza', type: 'text', width: '1/3', placeholder: 'Arquiteto, Rebelde...' },
+      { id: 'v-gen', key: 'generation', label: 'Geração', type: 'text', width: '1/3', defaultValue: '12ª' },
+      { id: 'v-player', key: 'player_name', label: 'Jogador', type: 'text', width: '1/3', placeholder: 'Nome do Jogador' },
+      { id: 'v-demeanor', key: 'demeanor', label: 'Comportamento', type: 'text', width: '1/3', placeholder: 'Solitário, Juiz...' },
+      { id: 'v-sire', key: 'sire', label: 'Senhor', type: 'text', width: '1/3', placeholder: 'Nome do Criador' },
+      { id: 'v-chronicle', key: 'chronicle', label: 'Crônica', type: 'text', width: '1/3', placeholder: 'Noites de Sangue...' },
+      { id: 'v-clan', key: 'clan', label: 'Clã', type: 'text', width: '1/3', placeholder: 'Ventrue, Brujah, Toreador...' },
+      { id: 'v-concept', key: 'concept', label: 'Conceito', type: 'text', width: '1/3', placeholder: 'Magnata da Noite, Artista...' }
+    ]
+  },
+  {
+    id: 'sec-vtm-attributes',
+    title: 'Atributos (Físicos • Sociais • Mentais)',
+    description: 'Trilhas de 8 pontos com paradas de dados d10',
+    fields: [
+      { id: 'v-str', key: 'strength', label: 'Força', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-cha', key: 'charisma', label: 'Carisma', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-perc', key: 'perception', label: 'Percepção', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-dex', key: 'dexterity', label: 'Destreza', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-man', key: 'manipulation', label: 'Manipulação', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-int', key: 'intelligence', label: 'Inteligência', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-sta', key: 'stamina', label: 'Vigor', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-app', key: 'appearance', label: 'Aparência', type: 'number', width: '1/3', defaultValue: 1, isModifier: true },
+      { id: 'v-wit', key: 'wits', label: 'Raciocínio', type: 'number', width: '1/3', defaultValue: 1, isModifier: true }
+    ]
+  },
+  {
+    id: 'sec-vtm-abilities',
+    title: 'Habilidades (Talentos • Perícias • Conhecimentos)',
+    description: 'Capacidades práticas e intelectuais do vampiro',
+    fields: [
+      { id: 'v-alert', key: 'alertness', label: 'Prontidão', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-ath', key: 'athletics', label: 'Atletismo', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-brawl', key: 'brawl', label: 'Briga', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-stealth', key: 'stealth', label: 'Furtividade', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-guns', key: 'firearms', label: 'Armas de Fogo', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-melee', key: 'melee', label: 'Armas Brancas', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-acad', key: 'academics', label: 'Acadêmicos', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-invest', key: 'investigation', label: 'Investigação', type: 'number', width: '1/3', defaultValue: 0, isModifier: true },
+      { id: 'v-occult', key: 'occult', label: 'Ocultismo', type: 'number', width: '1/3', defaultValue: 0, isModifier: true }
+    ]
+  },
+  {
+    id: 'sec-vtm-virtues',
+    title: 'Vantagens, Humanidade & Sangue',
+    description: 'Reservatório de vitae e estado da alma',
+    fields: [
+      { id: 'v-disc', key: 'disciplines', label: 'Disciplinas', type: 'textarea', width: '1/2', placeholder: 'Potência ●●, Rapidez ●, Dominação ●●●' },
+      { id: 'v-bg', key: 'backgrounds', label: 'Antecedentes', type: 'textarea', width: '1/2', placeholder: 'Recursos ●●●, Aliados ●●, Rebanho ●' },
+      { id: 'v-humanity', key: 'humanity', label: 'Humanidade', type: 'number', width: '1/3', defaultValue: 7, isModifier: true },
+      { id: 'v-will', key: 'willpower', label: 'Força de Vontade', type: 'number', width: '1/3', defaultValue: 5, isModifier: true },
+      { id: 'v-blood', key: 'blood_pool', label: 'Pontos de Sangue', type: 'number', width: '1/3', defaultValue: 10 }
+    ]
+  }
+]
+
+// Preset Oficial Cyberpunk RED (Baseado em RTG CPR Fillable Sheet)
+export const CYBERPUNK_SHEET_SECTIONS: import('../../../preload/index.d').SheetCustomSection[] = [
+  {
+    id: 'sec-cpr-handle',
+    title: 'IDENTIDADE & STREET CRED // CPR',
+    description: 'DADOS PESSOAIS DO EDGERUNNER',
+    fields: [
+      { id: 'cp-handle', key: 'character_name', label: 'HANDLE', type: 'text', width: '1/3', placeholder: 'Codinome nas ruas...' },
+      { id: 'cp-role', key: 'role', label: 'ROLE', type: 'text', width: '1/3', placeholder: 'Solo, Netrunner, Tech, Rockerboy...' },
+      { id: 'cp-rank', key: 'role_rank', label: 'ROLE RANK', type: 'number', width: '1/3', defaultValue: 4 },
+      { id: 'cp-rep', key: 'reputation', label: 'REPUTAÇÃO (REP)', type: 'number', width: '1/2', defaultValue: 2 },
+      { id: 'cp-aliases', key: 'aliases', label: 'ALIASES / RG REAL', type: 'text', width: '1/2', placeholder: 'Nomes nas corporações...' }
+    ]
+  },
+  {
+    id: 'sec-cpr-stats',
+    title: 'STATISTICS (STATS PRIMÁRIOS 1-10)',
+    description: 'PARÂMETROS BIOMÉTRICOS & NEURAIS',
+    fields: [
+      { id: 'cp-int', key: 'stat_int', label: 'INT', type: 'number', width: '1/4', defaultValue: 7, isModifier: true },
+      { id: 'cp-ref', key: 'stat_ref', label: 'REF', type: 'number', width: '1/4', defaultValue: 8, isModifier: true },
+      { id: 'cp-dex', key: 'stat_dex', label: 'DEX', type: 'number', width: '1/4', defaultValue: 7, isModifier: true },
+      { id: 'cp-tech', key: 'stat_tech', label: 'TECH', type: 'number', width: '1/4', defaultValue: 5, isModifier: true },
+      { id: 'cp-cool', key: 'stat_cool', label: 'COOL', type: 'number', width: '1/4', defaultValue: 6, isModifier: true },
+      { id: 'cp-will', key: 'stat_will', label: 'WILL', type: 'number', width: '1/4', defaultValue: 6, isModifier: true },
+      { id: 'cp-move', key: 'stat_move', label: 'MOVE', type: 'number', width: '1/4', defaultValue: 6, isModifier: true },
+      { id: 'cp-body', key: 'stat_body', label: 'BODY', type: 'number', width: '1/4', defaultValue: 7, isModifier: true }
+    ]
+  },
+  {
+    id: 'sec-cpr-combat',
+    title: 'SAÚDE, BLINDAGEM (SP) & COMBATE',
+    description: 'CONDIÇÃO FÍSICA E PROTEÇÃO BALÍSTICA',
+    fields: [
+      { id: 'cp-hp', key: 'hit_points', label: 'HP ATUAL / TOTAL', type: 'number', width: '1/4', defaultValue: 40 },
+      { id: 'cp-wound', key: 'seriously_wounded', label: 'FERIMENTO GRAVE', type: 'number', width: '1/4', defaultValue: 20 },
+      { id: 'cp-death', key: 'death_save', label: 'DEATH SAVE', type: 'number', width: '1/4', defaultValue: 7 },
+      { id: 'cp-humanity', key: 'humanity', label: 'HUMANIDADE (EMP)', type: 'text', width: '1/4', defaultValue: '48 / 50' },
+      { id: 'cp-sp-head', key: 'sp_head', label: 'SP CABEÇA', type: 'number', width: '1/2', defaultValue: 11 },
+      { id: 'cp-sp-body', key: 'sp_body', label: 'SP CORPO', type: 'number', width: '1/2', defaultValue: 11 }
+    ]
+  },
+  {
+    id: 'sec-cpr-cyber',
+    title: 'CIBERMÉTICA & EQUIPAMENTOS TÁTICOS',
+    description: 'HARDWARE NEURAL E ARSENAL',
+    fields: [
+      { id: 'cp-cyber', key: 'cyberware', label: 'CIBERWARE INSTALADO', type: 'textarea', width: '1/2', placeholder: 'Interface Plug, Wolvers, Cybereye c/ Termografia...' },
+      { id: 'cp-weapons', key: 'weapons', label: 'ARMAS & MUNIÇÕES', type: 'textarea', width: '1/2', placeholder: 'Militech Crusher (3d6), Dai Lung Streetmaster (2d6)...' }
     ]
   }
 ]
