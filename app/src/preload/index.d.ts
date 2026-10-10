@@ -166,11 +166,22 @@ export interface ModularSectionConfig {
 
 export type SheetFieldWidth = '1/4' | '1/3' | '1/2' | '2/3' | '3/4' | 'full' | string
 
+export type SheetComponentType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'reference'
+  | 'textarea'
+  | 'checkbox'
+  | 'label'
+  | 'stat'
+  | 'dots'
+
 export interface SheetCustomField {
   id: string
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'reference' | 'textarea' | 'checkbox'
+  type: SheetComponentType
   referenceType?: ContentType | 'custom'
   options?: string[]
   width: SheetFieldWidth
@@ -189,16 +200,96 @@ export interface SheetCustomSection {
   width?: SheetFieldWidth
   customWidth?: number // porcentagem livre de 20 a 100% para seções lado a lado
   customHeight?: number // altura livre em pixels
+  column?: 'left' | 'right' | 'full' // posicionamento em coluna (esquerda, direita ou largura cheia)
   fields: SheetCustomField[]
 }
 
 export interface SheetLayoutConfig {
-  type?: 'hybrid' | 'modular' | 'custom'
+  type?: 'hybrid' | 'modular' | 'custom' | 'canvas'
   theme?: string
   pages?: string[] // Data URLs ou caminhos das imagens das páginas (legado)
   pins?: SheetLayoutPin[]
   sections?: SheetCustomSection[]
   modularSections: ModularSectionConfig[]
+  canvasLayout?: CanvasSheetLayout
+}
+
+export type CanvasElementType =
+  | 'frame'
+  | 'text_field'
+  | 'label'
+  | 'stat'
+  | 'textarea'
+  | 'dots'
+  | 'checkbox'
+  | 'divider'
+
+export interface CanvasElement {
+  id: string
+  type: CanvasElementType
+  name: string
+  x: number
+  y: number
+  width: number
+  height: number
+  parentId?: string | null
+  zIndex?: number
+  locked?: boolean
+  hidden?: boolean
+
+  // Frame styling & config
+  title?: string
+  subtitle?: string
+  showHeader?: boolean
+  backgroundColor?: string
+  borderColor?: string
+  borderWidth?: number
+  borderRadius?: number
+
+  // Field / input config (for text_field)
+  key?: string
+  label?: string
+  placeholder?: string
+  defaultValue?: string | number | boolean
+  inputType?: 'text' | 'number'
+  min?: number
+  max?: number
+  step?: number
+  formula?: string
+
+  // Label (Display Text) config
+  textContent?: string
+  fontSize?: number
+  fontWeight?: 'normal' | 'medium' | 'bold'
+  textAlign?: 'left' | 'center' | 'right'
+  textColor?: string
+  fontFamily?: 'cinzel' | 'sans' | 'mono'
+
+  // Stat Box config
+  statLabel?: string
+  statKey?: string
+  statScore?: number
+  statFormula?: string
+  showModifier?: boolean
+
+  // Dot Track config
+  maxDots?: number
+  dotStyle?: 'circle' | 'diamond' | 'square'
+
+  // Textarea config
+  rows?: number
+
+  // Checkbox config
+  checked?: boolean
+}
+
+export interface CanvasSheetLayout {
+  width: number
+  height: number
+  elements: CanvasElement[]
+  theme?: string
+  snapToGrid?: boolean
+  gridSize?: number
 }
 
 export interface DynamicListItem {

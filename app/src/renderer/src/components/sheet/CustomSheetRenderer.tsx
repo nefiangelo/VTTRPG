@@ -1,21 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useMemo } from 'react'
 import type {
   SheetCustomSection,
-  SheetCustomField,
   RpgSystemFull,
-  SystemContentEntry,
-  ContentType
+  CanvasSheetLayout,
+  CanvasElement
 } from '../../../../preload/index.d'
-import { getFieldStyle, getSectionStyle } from '../../utils/sheetLayoutUtils'
-import { getSheetTheme } from '../../utils/sheetThemes'
-import { Dice5 } from 'lucide-react'
-import VampireDotTrack from './VampireDotTrack'
-import DndAbilityBox from './DndAbilityBox'
 import {
-  DndScallopedCorner,
-  VampireSpearheadDivider,
-  VampireTopOrnament
-} from './ThemedSectionDecorations'
+  convertSectionsToCanvas,
+  createDnd5eCanvasPreset
+} from '../../utils/sheetLayoutUtils'
+import { Dices } from 'lucide-react'
 
 interface CustomSheetRendererProps {
   sections: SheetCustomSection[]
@@ -27,61 +21,6 @@ interface CustomSheetRendererProps {
   theme?: string
 }
 
-const DEFAULT_REFERENCE_SUGGESTIONS: Record<string, string[]> = {
-  class: [
-    'Bárbaro',
-    'Bardo',
-    'Bruxo',
-    'Clérigo',
-    'Druida',
-    'Feiticeiro',
-    'Guerreiro',
-    'Ladino',
-    'Mago',
-    'Monge',
-    'Paladino',
-    'Patrulheiro'
-  ],
-  race: [
-    'Humano',
-    'Elfo',
-    'Anão',
-    'Halfling',
-    'Draconato',
-    'Gnomo',
-    'Meio-Elfo',
-    'Meio-Orc',
-    'Tiefling',
-    'Golias',
-    'Aasimar'
-  ],
-  subclass: [
-    'Campeão',
-    'Mestre de Batalha',
-    'Evocador',
-    'Assassino',
-    'Ladrão',
-    'Devoção',
-    'Vingança',
-    'Vida',
-    'Guerra'
-  ],
-  background: [
-    'Acólito',
-    'Artesão de Guilda',
-    'Charlatão',
-    'Criminoso',
-    'Eremita',
-    'Forasteiro',
-    'Herói do Povo',
-    'Marinheiro',
-    'Nobre',
-    'Órfão',
-    'Sábio',
-    'Soldado'
-  ]
-}
-
 export default function CustomSheetRenderer({
   sections,
   system,
@@ -89,452 +28,375 @@ export default function CustomSheetRenderer({
   canEdit,
   onChangeValue,
   onRollField,
-  theme
+  theme: _theme
 }: CustomSheetRendererProps): React.JSX.Element {
-  // Determina o tema ativo (prioridade: prop direta > configuração salva do sistema > gênero do sistema > dnd padrão)
-  const resolvedThemeId =
-    theme ||
-    system?.structure?.sheetLayout?.theme ||
-    (system?.genre?.toLowerCase().includes('cyber') || system?.genre?.toLowerCase().includes('sci-fi')
-      ? 'cyberpunk'
-      : system?.genre?.toLowerCase().includes('horror')
-        ? 'horror'
-        : 'dnd')
+  // Escala de visualização da ficha (Zoom para caber na tela do jogador)
+  const [zoom, setZoom] = useState<number>(1)
 
-  const activeTheme = getSheetTheme(resolvedThemeId)
-
-  // Cache de opções carregadas do banco para tipos de conteúdo referenciados (classes, raças, etc.)
-  const [referenceOptions, setReferenceOptions] = useState<Record<string, string[]>>({})
-
-  useEffect(() => {
-    let isMounted = true
-
-    const loadContentOptions = async (): Promise<void> => {
-      const refTypes = new Set<ContentType>()
-      sections.forEach((sec) => {
-        sec.fields.forEach((f) => {
-          if (f.type === 'reference' && f.referenceType && f.referenceType !== 'custom') {
-            refTypes.add(f.referenceType as ContentType)
-          }
-        })
-      })
-
-      const loaded: Record<string, string[]> = {}
-
-      for (const ct of refTypes) {
-        let entries: SystemContentEntry[] = []
-        if (system?.id && window.api?.content?.getBySystem) {
-          try {
-            entries = await window.api.content.getBySystem(system.id, ct)
-          } catch (err) {
-            console.error(`Erro ao buscar conteúdo para ${ct}:`, err)
-          }
-        }
-
-        const namesFromDb = entries.map((e) => e.name).filter(Boolean)
-        const defaults = DEFAULT_REFERENCE_SUGGESTIONS[ct] || []
-        const combined = Array.from(new Set([...namesFromDb, ...defaults]))
-        loaded[ct] = combined
-      }
-
-      if (isMounted) {
-        setReferenceOptions(loaded)
-      }
+  // Obtém o layout livre em canvas do sistema, ou converte as seções existentes
+  const canvasLayout: CanvasSheetLayout = useMemo(() => {
+    if (system?.structure?.sheetLayout?.canvasLayout?.elements?.length) {
+      return system.structure.sheetLayout.canvasLayout
     }
-
-    loadContentOptions()
-
-    return () => {
-      isMounted = false
+    if (sections && sections.length > 0) {
+      return convertSectionsToCanvas(sections)
     }
-  }, [sections, system?.id])
+    return createDnd5eCanvasPreset()
+  }, [system?.structure?.sheetLayout?.canvasLayout, sections])
 
-  const handleRoll = (field: SheetCustomField, val: string | number | boolean): void => {
-    if (!onRollField) return
-    onRollField(field.label || field.key, val, field.formula)
-  }
+  // Separação de Frames e elementos avulsos
+  const frames = useMemo(() => {
+    return canvasLayout.elements.filter((e) => e.type === 'frame' && !e.parentId)
+  }, [canvasLayout.elements])
 
-  const isDndTheme = activeTheme.variant === 'dnd'
-  const isVampireTheme = activeTheme.variant === 'vampire'
+  const looseElements = useMemo(() => {
+    return canvasLayout.elements.filter((e) => e.type !== 'frame' && !e.parentId)
+  }, [canvasLayout.elements])
 
   return (
-    <div className={`flex flex-wrap gap-4 max-w-6xl mx-auto w-full pb-10 transition-colors duration-300 p-2 sm:p-4 rounded-3xl items-start ${activeTheme.styles.wrapper}`}>
-      {/* Ornamento do topo para Vampiro: A Máscara (Imagem 1) */}
-      {isVampireTheme && (
-        <div className="w-full">
-          <VampireTopOrnament />
+    <div className="flex flex-col w-full h-full min-h-[600px] select-none relative bg-neutral-950/60 rounded-xl overflow-hidden">
+      {/* ── BARRA SUPERIOR DE CONTROLE DE ESCALA / ZOOM ── */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-neutral-800/80 bg-neutral-900/70 backdrop-blur-md z-20">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-vtt-golden uppercase tracking-wider font-cinzel">
+            {system?.name || 'Ficha de Personagem'}
+          </span>
+          <span className="text-[11px] font-mono text-neutral-500">
+            • {canvasLayout.width} × {canvasLayout.height} px
+          </span>
+        </div>
+
+        {/* Controles de Escala / Zoom da Ficha */}
+        <div className="flex items-center gap-1.5 text-xs text-neutral-400 bg-neutral-800/80 px-2 py-1 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(0.5, Number((z - 0.1).toFixed(1))))}
+            className="hover:text-white font-mono px-1.5 py-0.5 rounded hover:bg-neutral-700/60"
+            title="Reduzir Tamanho"
+          >
+            -
+          </button>
+          <span className="font-mono text-[11px] min-w-[36px] text-center">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(1.5, Number((z + 0.1).toFixed(1))))}
+            className="hover:text-white font-mono px-1.5 py-0.5 rounded hover:bg-neutral-700/60"
+            title="Aumentar Tamanho"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            className="text-[10px] text-neutral-400 hover:text-vtt-golden ml-1 border-l border-neutral-700 pl-1.5 font-medium"
+            title="Restaurar tamanho padrão 100%"
+          >
+            Padrão
+          </button>
+        </div>
+      </div>
+
+      {/* ── ARTBOARD LIVRE DA FICHA DO PERSONAGEM (SCROLLÁVEL) ── */}
+      <div
+        className="flex-1 overflow-auto p-8 flex justify-center items-start bg-neutral-950"
+        style={{
+          backgroundImage: `radial-gradient(#26262e 1.5px, transparent 1.5px)`,
+          backgroundSize: `${24 * zoom}px ${24 * zoom}px`
+        }}
+      >
+        <div
+          className="relative bg-neutral-900/90 rounded-2xl border border-neutral-800/90 shadow-[0_25px_60px_rgba(0,0,0,0.85)] origin-top transition-transform"
+          style={{
+            width: canvasLayout.width,
+            height: canvasLayout.height,
+            transform: `scale(${zoom})`,
+            transformOrigin: 'top center'
+          }}
+        >
+          {/* 1. FRAMES COM SEUS CAMPOS FILHOS */}
+          {frames.map((frame) => {
+            const children = canvasLayout.elements.filter((e) => e.parentId === frame.id)
+
+            return (
+              <div
+                key={frame.id}
+                className="absolute transition-all overflow-hidden"
+                style={{
+                  left: frame.x,
+                  top: frame.y,
+                  width: frame.width,
+                  height: frame.height,
+                  backgroundColor: frame.backgroundColor || 'rgba(23, 23, 28, 0.9)',
+                  borderColor: frame.borderColor || '#374151',
+                  borderWidth: frame.borderWidth ?? 1,
+                  borderRadius: frame.borderRadius ?? 12,
+                  borderStyle: 'solid'
+                }}
+              >
+                {/* Cabeçalho do Frame */}
+                {frame.showHeader !== false && (
+                  <div className="px-4 py-2.5 border-b border-neutral-800/80 flex items-center justify-between bg-neutral-950/40">
+                    <div>
+                      <h4 className="text-xs font-bold text-vtt-golden uppercase tracking-wider font-cinzel">
+                        {frame.title || frame.name}
+                      </h4>
+                      {frame.subtitle && (
+                        <p className="text-[10px] text-neutral-400 leading-tight">
+                          {frame.subtitle}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Campos dentro do Frame */}
+                {children.map((child) => (
+                  <RenderInteractiveElement
+                    key={child.id}
+                    element={child}
+                    values={values}
+                    canEdit={canEdit}
+                    onChangeValue={onChangeValue}
+                    onRollField={onRollField}
+                  />
+                ))}
+              </div>
+            )
+          })}
+
+          {/* 2. ELEMENTOS SOLTOS NA TELA LIVRE */}
+          {looseElements.map((elem) => (
+            <RenderInteractiveElement
+              key={elem.id}
+              element={elem}
+              values={values}
+              canEdit={canEdit}
+              onChangeValue={onChangeValue}
+              onRollField={onRollField}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SUB-COMPONENTE: RENDERIZA O ELEMENTO INTERATIVO DA FICHA
+───────────────────────────────────────────────────────────── */
+interface RenderInteractiveElementProps {
+  element: CanvasElement
+  values: Record<string, string | number | boolean>
+  canEdit: boolean
+  onChangeValue: (key: string, value: string | number | boolean) => void
+  onRollField?: (label: string, value: string | number | boolean, formula?: string) => void
+}
+
+function RenderInteractiveElement({
+  element,
+  values,
+  canEdit,
+  onChangeValue,
+  onRollField
+}: RenderInteractiveElementProps): React.JSX.Element {
+  const valKey = element.key || element.id
+  const rawValue = values[valKey]
+  const currentValue =
+    rawValue !== undefined ? rawValue : element.defaultValue !== undefined ? element.defaultValue : ''
+
+  const isNumberStyle = element.inputType === 'number'
+
+  // Para Stat Box (D&D Ability)
+  const statKey = element.statKey || element.id
+  const rawScore = values[statKey]
+  const currentScore =
+    rawScore !== undefined
+      ? Number(rawScore)
+      : element.statScore !== undefined
+        ? Number(element.statScore)
+        : 10
+  const statModifier = Math.floor((currentScore - 10) / 2)
+  const modSign = statModifier >= 0 ? `+${statModifier}` : `${statModifier}`
+
+  return (
+    <div
+      className="absolute"
+      style={{
+        left: element.x,
+        top: element.y,
+        width: element.width,
+        height: element.height
+      }}
+    >
+      {/* ── 1. CAMPO DE ENTRADA (TEXTO OU NÚMERO) ── */}
+      {element.type === 'text_field' && (
+        <div className="w-full h-full flex flex-col justify-between bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-1.5 focus-within:border-vtt-golden focus-within:ring-1 focus-within:ring-vtt-golden transition-all">
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider truncate px-1">
+            {element.label || 'Campo'}
+          </span>
+          <div className="flex items-center gap-1">
+            <input
+              type={isNumberStyle ? 'number' : 'text'}
+              disabled={!canEdit}
+              value={currentValue as string | number}
+              onChange={(e) =>
+                onChangeValue(valKey, isNumberStyle ? Number(e.target.value) || 0 : e.target.value)
+              }
+              placeholder={element.placeholder || '...'}
+              className={`w-full bg-transparent text-xs text-neutral-100 font-medium px-1 outline-none ${
+                isNumberStyle ? 'font-mono text-center font-bold' : ''
+              } ${!canEdit ? 'opacity-80' : ''}`}
+            />
+            {/* Botão de rolagem se for número e possuir fórmula */}
+            {isNumberStyle && (
+              <button
+                type="button"
+                onClick={() => {
+                  const formula = element.formula || `1d20${Number(currentValue) >= 0 ? `+${currentValue}` : currentValue}`
+                  onRollField?.(element.label || valKey, currentValue, formula)
+                }}
+                className="text-neutral-400 hover:text-vtt-golden p-1 rounded hover:bg-neutral-800 transition-colors"
+                title={`Rolar ${element.label || valKey}`}
+              >
+                <Dices className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       )}
 
-      {sections.map((section) => (
+      {/* ── 2. RÓTULO ESTÁTICO (LABEL) ── */}
+      {element.type === 'label' && (
         <div
-          key={section.id}
-          style={getSectionStyle(section.width, section.customWidth, section.customHeight)}
-          className={`${activeTheme.styles.sectionCard} relative`}
+          className={`w-full h-full flex items-center overflow-hidden ${
+            element.fontFamily === 'cinzel' ? 'font-cinzel' : ''
+          }`}
+          style={{
+            fontSize: `${element.fontSize || 16}px`,
+            color: element.textColor || '#E9D180',
+            fontWeight: element.fontWeight || 'bold',
+            justifyContent:
+              element.textAlign === 'center'
+                ? 'center'
+                : element.textAlign === 'right'
+                  ? 'flex-end'
+                  : 'flex-start'
+          }}
         >
-          {/* Canto entalhado com rebite circular para a ficha de D&D 2024 (Imagem 2) */}
-          {isDndTheme && <DndScallopedCorner />}
-          {isDndTheme && (
-            <div className="absolute inset-1.5 pointer-events-none border border-stone-300/80 rounded" />
+          <span className="truncate">{element.textContent || 'Texto de Exibição'}</span>
+        </div>
+      )}
+
+      {/* ── 3. BOX DE ATRIBUTO CLÁSSICO D&D (STAT) ── */}
+      {element.type === 'stat' && (
+        <div className="w-full h-full flex flex-col items-center justify-between bg-neutral-900/95 border border-neutral-700/90 rounded-xl p-1.5 text-center shadow-lg group hover:border-vtt-golden transition-colors relative">
+          <span className="text-[10px] font-bold text-vtt-golden uppercase tracking-wider font-cinzel truncate w-full">
+            {element.statLabel || 'FOR'}
+          </span>
+
+          {element.showModifier !== false && (
+            <button
+              type="button"
+              onClick={() => {
+                const formula = `1d20${statModifier >= 0 ? `+${statModifier}` : statModifier}`
+                onRollField?.(element.statLabel || statKey, statModifier, formula)
+              }}
+              className="text-base font-black text-white font-mono hover:text-vtt-golden hover:scale-110 transition-transform cursor-pointer"
+              title={`Rolar teste de ${element.statLabel || statKey} (1d20${modSign})`}
+            >
+              {modSign}
+            </button>
           )}
 
-          {/* Cabeçalho da Seção */}
-          {isVampireTheme ? (
-            <VampireSpearheadDivider
-              title={section.title}
-              description={section.description}
-            />
-          ) : (
-            <div className={activeTheme.styles.sectionHeader}>
-              <div>
-                <h3 className={activeTheme.styles.sectionTitle}>
-                  <span className={activeTheme.styles.sectionBullet} />
-                  <span>{section.title}</span>
-                </h3>
-                {section.description && (
-                  <p className={activeTheme.styles.sectionDesc}>{section.description}</p>
-                )}
-              </div>
+          <div className="w-full flex items-center justify-center">
+            {canEdit ? (
+              <input
+                type="number"
+                value={currentScore}
+                onChange={(e) => onChangeValue(statKey, Number(e.target.value) || 10)}
+                className="w-10 bg-neutral-800 rounded text-center text-xs text-neutral-300 font-mono py-0.5 border border-neutral-700 outline-none focus:border-vtt-golden"
+              />
+            ) : (
+              <span className="text-[11px] font-mono text-neutral-400 bg-neutral-800/80 px-2 py-0.5 rounded-full border border-neutral-700">
+                {currentScore}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
-              {activeTheme.styles.techTag && (
-                <span className={`text-[10px] font-mono px-2 py-0.5 rounded opacity-80 ${activeTheme.styles.badge}`}>
-                  {activeTheme.styles.techTag}
-                </span>
-              )}
-            </div>
-          )}
+      {/* ── 4. ÁREA DE TEXTO MULTILINHA (TEXTAREA) ── */}
+      {element.type === 'textarea' && (
+        <div className="w-full h-full flex flex-col bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-2 focus-within:border-vtt-golden transition-colors">
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1 truncate">
+            {element.label || 'Anotações'}
+          </span>
+          <textarea
+            disabled={!canEdit}
+            value={currentValue as string}
+            onChange={(e) => onChangeValue(valKey, e.target.value)}
+            placeholder={element.placeholder || '...'}
+            className="flex-1 w-full bg-transparent text-xs text-neutral-200 outline-none resize-none"
+          />
+        </div>
+      )}
 
-          {/* Grid Flexível de Campos com larguras personalizadas livres */}
-          <div className="flex flex-wrap gap-3 mt-2 items-start w-full">
-            {section.fields.map((field) => {
-              const fieldStyle = getFieldStyle(field.width, field.customWidth, field.customHeight)
-              const rawValue = values[field.key]
-              const val =
-                rawValue !== undefined
-                  ? rawValue
-                  : field.defaultValue !== undefined
-                    ? field.defaultValue
-                    : ''
-
-              const datalistId = `ref-list-${field.id}`
-              const options =
-                field.type === 'reference'
-                  ? referenceOptions[field.referenceType || 'class'] ||
-                    DEFAULT_REFERENCE_SUGGESTIONS[field.referenceType || ''] ||
-                    []
-                  : field.options || []
-
-              // ── 1. RENDERIZAÇÃO ESPECIALIZADA: VAMPIRO (VTM - Imagem 1) ──
-              if (isVampireTheme) {
-                // Características com trilha de círculos (● e ○) para Atributos e Habilidades
-                const isDotField =
-                  field.type === 'number' ||
-                  Boolean(field.isModifier) ||
-                  (typeof field.defaultValue === 'number' && field.defaultValue <= 8)
-
-                if (isDotField) {
-                  const numVal = typeof val === 'number' ? val : Number(val) || 0
-                  // Atributos base em VTM possuem mínimo de 1 ponto
-                  const isBaseAttr = [
-                    'strength', 'forca', 'dexterity', 'destreza', 'stamina', 'vigor',
-                    'charisma', 'carisma', 'manipulation', 'manipulacao', 'appearance', 'aparencia',
-                    'perception', 'percepcao', 'intelligence', 'inteligencia', 'wits', 'raciocinio'
-                  ].includes(field.key.toLowerCase())
-
-                  return (
-                    <div key={field.id} style={fieldStyle} className="flex items-center">
-                      <VampireDotTrack
-                        label={field.label}
-                        value={numVal}
-                        maxDots={8}
-                        minDots={isBaseAttr ? 1 : 0}
-                        canEdit={canEdit}
-                        onChangeValue={(newVal) => onChangeValue(field.key, newVal)}
-                        onRoll={(lbl, pool) => {
-                          onRollField?.(lbl, pool, `${pool}d10`)
-                        }}
-                      />
-                    </div>
-                  )
-                }
-
-                // Campos de Perfil / Informações Gerais em formato INLINE (NOME: _________) conforme Imagem 1
-                if (field.type === 'text' || field.type === 'reference') {
-                  return (
-                    <div key={field.id} style={fieldStyle} className="flex items-baseline gap-2 py-1">
-                      <label
-                        className="font-serif font-black text-xs text-black uppercase tracking-wider shrink-0 select-none"
-                        title={field.label}
-                      >
-                        {field.label}:
-                      </label>
-                      <input
-                        type="text"
-                        disabled={!canEdit}
-                        value={String(val)}
-                        onChange={(e) => onChangeValue(field.key, e.target.value)}
-                        placeholder={field.placeholder || ''}
-                        className="flex-1 bg-[#eef2ff]/75 border-b border-black text-black font-serif text-xs font-bold outline-none px-2 py-0.5 focus:bg-[#e0e7ff] transition-colors disabled:opacity-60"
-                      />
-                    </div>
-                  )
-                }
-
-                // Textarea para VTM (Disciplinas, Antecedentes, etc.)
-                if (field.type === 'textarea') {
-                  return (
-                    <div key={field.id} style={fieldStyle} className="flex flex-col gap-1 py-1">
-                      <label className="font-serif font-black text-xs text-black uppercase tracking-wider select-none">
-                        {field.label}:
-                      </label>
-                      <textarea
-                        disabled={!canEdit}
-                        rows={3}
-                        value={String(val)}
-                        onChange={(e) => onChangeValue(field.key, e.target.value)}
-                        placeholder={field.placeholder || `Anotações de ${field.label}...`}
-                        className="w-full bg-[#f8fafc] border border-black p-2 text-xs font-serif text-black placeholder:text-neutral-500 outline-none focus:bg-white resize-none leading-relaxed transition-all disabled:opacity-60"
-                        style={{
-                          height: field.customHeight ? `${Math.max(48, field.customHeight - 44)}px` : undefined
-                        }}
-                      />
-                    </div>
-                  )
-                }
-              }
-
-              // ── 2. RENDERIZAÇÃO ESPECIALIZADA: D&D 5E (Imagem 2) ──
-              if (isDndTheme) {
-                // Atributos de habilidade com modificador e caixa oficial D&D
-                if (field.type === 'number' && field.isModifier) {
-                  return (
-                    <div key={field.id} style={fieldStyle}>
-                      <DndAbilityBox
-                        label={field.label}
-                        score={typeof val === 'number' ? val : Number(val) || 10}
-                        canEdit={canEdit}
-                        onChangeScore={(s) => onChangeValue(field.key, s)}
-                        onRoll={(lbl, mod) => {
-                          const sign = mod >= 0 ? `+${mod}` : `${mod}`
-                          onRollField?.(lbl, mod, `1d20${sign}`)
-                        }}
-                      />
-                    </div>
-                  )
-                }
-
-                // Campos de Texto, Referência e Select com LINHA DE BASE PURA (Imagem 2)
-                return (
-                  <div
-                    key={field.id}
-                    style={fieldStyle}
-                    className="flex flex-col justify-end py-1 group/dndfield"
-                  >
-                    {/* Rótulo superior com caixa alta espaçada clássica da Imagem 2 */}
-                    <div className="flex items-center justify-between gap-1 mb-0.5">
-                      <label
-                        className="text-[10px] font-bold text-stone-700 font-sans tracking-[0.2em] uppercase select-none truncate"
-                        title={field.label}
-                      >
-                        {field.label}
-                      </label>
-                    </div>
-
-                    {/* Input sem caixa, com linha de base nítida e tipografia de ficha */}
-                    {field.type === 'textarea' ? (
-                      <textarea
-                        disabled={!canEdit}
-                        rows={3}
-                        value={String(val)}
-                        onChange={(e) => onChangeValue(field.key, e.target.value)}
-                        placeholder={field.placeholder || `Anotações de ${field.label}...`}
-                        className={`w-full bg-[#fdfcf9] border border-stone-400 rounded-sm p-2 text-xs font-serif text-stone-900 placeholder:text-stone-400 outline-none focus:border-stone-800 resize-none leading-6 [background-image:repeating-linear-gradient(transparent,transparent_23px,#e7e5e4_24px)] transition-all disabled:opacity-60 ${
-                          field.customHeight ? 'flex-1' : ''
-                        }`}
-                        style={{
-                          height: field.customHeight ? `${Math.max(48, field.customHeight - 44)}px` : undefined
-                        }}
-                      />
-                    ) : field.type === 'select' ? (
-                      <select
-                        disabled={!canEdit}
-                        value={String(val)}
-                        onChange={(e) => onChangeValue(field.key, e.target.value)}
-                        className="w-full bg-transparent border-0 border-b-[1.5px] border-stone-400 text-stone-900 font-serif text-xs font-semibold outline-none py-1 focus:border-stone-800 cursor-pointer transition-colors disabled:opacity-60"
-                      >
-                        <option value="">Selecione...</option>
-                        {options.map((opt) => (
-                          <option key={opt} value={opt}>
-                            {opt}
-                          </option>
-                        ))}
-                      </select>
-                    ) : field.type === 'reference' ? (
-                      <div className="relative w-full">
-                        <input
-                          list={datalistId}
-                          disabled={!canEdit}
-                          value={String(val)}
-                          onChange={(e) => onChangeValue(field.key, e.target.value)}
-                          placeholder={field.placeholder || ''}
-                          className="w-full bg-transparent border-0 border-b-[1.5px] border-stone-400 text-stone-900 font-serif text-sm font-semibold outline-none py-1 focus:border-stone-800 transition-colors disabled:opacity-60"
-                        />
-                        <datalist id={datalistId}>
-                          {options.map((opt) => (
-                            <option key={opt} value={opt} />
-                          ))}
-                        </datalist>
-                      </div>
-                    ) : field.type === 'checkbox' ? (
-                      <label className="flex items-center gap-2 py-1 cursor-pointer select-none">
-                        <input
-                          type="checkbox"
-                          disabled={!canEdit}
-                          checked={Boolean(val)}
-                          onChange={(e) => onChangeValue(field.key, e.target.checked)}
-                          className="w-4 h-4 rounded cursor-pointer accent-stone-700 disabled:opacity-60"
-                        />
-                        <span className="text-xs text-stone-800 font-sans font-semibold tracking-wide">
-                          {val ? 'Sim' : 'Não'}
-                        </span>
-                      </label>
-                    ) : (
-                      <input
-                        type={field.type === 'number' ? 'number' : 'text'}
-                        disabled={!canEdit}
-                        value={typeof val === 'boolean' ? '' : val}
-                        onChange={(e) => {
-                          const v = field.type === 'number'
-                            ? (e.target.value === '' ? '' : Number(e.target.value))
-                            : e.target.value
-                          onChangeValue(field.key, v)
-                        }}
-                        placeholder={field.placeholder || ''}
-                        className="w-full bg-transparent border-0 border-b-[1.5px] border-stone-400 text-stone-900 font-serif text-sm font-semibold outline-none py-1 focus:border-stone-800 transition-colors disabled:opacity-60"
-                      />
-                    )}
-                  </div>
-                )
-              }
-
-              // ── 3. RENDERIZAÇÃO PADRÃO / CYBERPUNK / DEMAIS TEMAS ──
+      {/* ── 5. TRILHA DE PONTOS (DOTS) ── */}
+      {element.type === 'dots' && (
+        <div className="w-full h-full flex flex-col justify-between bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-2">
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider truncate">
+            {element.label || 'Pontos'}
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {Array.from({ length: element.maxDots || 5 }).map((_, i) => {
+              const currentFilled = Number(currentValue) || 0
+              const isFilled = i < currentFilled
               return (
-                <div
-                  key={field.id}
-                  style={fieldStyle}
-                  className={`flex flex-col gap-1.5 ${activeTheme.styles.fieldCard}`}
-                >
-                  <div className="flex items-center justify-between gap-1">
-                    <label
-                      className={activeTheme.styles.fieldLabel}
-                      title={field.label}
-                    >
-                      {field.label}
-                    </label>
-
-                    {field.isModifier && (
-                      <button
-                        type="button"
-                        onClick={() => handleRoll(field, val)}
-                        className={activeTheme.styles.rollButton}
-                        title={`Rolar teste com d20 para ${field.label}`}
-                      >
-                        <Dice5 className="w-3 h-3" />
-                        <span>d20</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {field.type === 'textarea' ? (
-                    <textarea
-                      disabled={!canEdit}
-                      rows={3}
-                      value={String(val)}
-                      onChange={(e) => onChangeValue(field.key, e.target.value)}
-                      placeholder={field.placeholder || `Digite ${field.label}...`}
-                      className={`w-full ${activeTheme.styles.textarea} disabled:opacity-60 ${field.customHeight ? 'flex-1' : ''}`}
-                      style={{
-                        height: field.customHeight ? `${Math.max(48, field.customHeight - 44)}px` : undefined
-                      }}
-                    />
-                  ) : field.type === 'number' ? (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        disabled={!canEdit}
-                        value={val === '' ? '' : Number(val)}
-                        onChange={(e) => {
-                          const n = e.target.value === '' ? '' : Number(e.target.value)
-                          onChangeValue(field.key, n)
-                        }}
-                        placeholder={field.placeholder || '0'}
-                        className={`${activeTheme.styles.input} disabled:opacity-60`}
-                      />
-                      {field.isModifier && typeof val === 'number' && (
-                        <span className={activeTheme.styles.modifierChip}>
-                          {val >= 0 ? `+${val}` : `${val}`}
-                        </span>
-                      )}
-                    </div>
-                  ) : field.type === 'checkbox' ? (
-                    <label className="flex items-center gap-2.5 py-1 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        disabled={!canEdit}
-                        checked={Boolean(val)}
-                        onChange={(e) => onChangeValue(field.key, e.target.checked)}
-                        className={`w-4 h-4 rounded cursor-pointer disabled:opacity-60 ${activeTheme.styles.checkboxAccent}`}
-                      />
-                      <span className={activeTheme.styles.checkboxText}>
-                        {val ? 'Sim / Ativado' : 'Não / Desativado'}
-                      </span>
-                    </label>
-                  ) : field.type === 'reference' ? (
-                    <div className="relative">
-                      <input
-                        list={datalistId}
-                        disabled={!canEdit}
-                        value={String(val)}
-                        onChange={(e) => onChangeValue(field.key, e.target.value)}
-                        placeholder={field.placeholder || `Selecione ou digite ${field.label}...`}
-                        className={`${activeTheme.styles.input} disabled:opacity-60`}
-                      />
-                      <datalist id={datalistId}>
-                        {options.map((opt) => (
-                          <option key={opt} value={opt} />
-                        ))}
-                      </datalist>
-                    </div>
-                  ) : field.type === 'select' ? (
-                    <select
-                      disabled={!canEdit}
-                      value={String(val)}
-                      onChange={(e) => onChangeValue(field.key, e.target.value)}
-                      className={`${activeTheme.styles.select} disabled:opacity-60`}
-                    >
-                      <option value="">Selecione...</option>
-                      {options.map((opt) => (
-                        <option key={opt} value={opt}>
-                          {opt}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      disabled={!canEdit}
-                      value={String(val)}
-                      onChange={(e) => onChangeValue(field.key, e.target.value)}
-                      placeholder={field.placeholder || `Digite ${field.label}...`}
-                      className={`${activeTheme.styles.input} disabled:opacity-60`}
-                    />
-                  )}
-                </div>
+                <button
+                  key={i}
+                  type="button"
+                  disabled={!canEdit}
+                  onClick={() => {
+                    if (!canEdit) return
+                    const nextVal = isFilled && i === currentFilled - 1 ? i : i + 1
+                    onChangeValue(valKey, nextVal)
+                  }}
+                  className={`w-3.5 h-3.5 rounded-full border transition-all ${
+                    isFilled
+                      ? 'bg-vtt-golden border-vtt-golden shadow-[0_0_8px_rgba(233,209,128,0.5)]'
+                      : 'bg-neutral-800 border-neutral-600 hover:border-neutral-400'
+                  }`}
+                />
               )
             })}
           </div>
         </div>
-      ))}
+      )}
+
+      {/* ── 6. MARCADOR / CHECKBOX ── */}
+      {element.type === 'checkbox' && (
+        <label className="w-full h-full flex items-center gap-2 bg-neutral-900/90 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 cursor-pointer hover:border-neutral-500 transition-colors">
+          <input
+            type="checkbox"
+            disabled={!canEdit}
+            checked={Boolean(currentValue)}
+            onChange={(e) => onChangeValue(valKey, e.target.checked)}
+            className="rounded accent-vtt-golden w-4 h-4"
+          />
+          <span className="text-xs text-neutral-200 font-medium truncate">
+            {element.label || 'Opção'}
+          </span>
+        </label>
+      )}
+
+      {/* ── 7. DIVISOR / LINHA ── */}
+      {element.type === 'divider' && (
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="w-full h-[2px] bg-neutral-700 rounded-full" />
+        </div>
+      )}
     </div>
   )
 }

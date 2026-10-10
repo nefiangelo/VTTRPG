@@ -1,1787 +1,1833 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react'
 import type {
   SheetLayoutConfig,
-  SheetCustomSection,
-  SheetCustomField,
-  ContentType
+  CanvasSheetLayout,
+  CanvasElement,
+  CanvasElementType
 } from '../../../../preload/index.d'
 import {
-  CONTENT_TYPE_LIST,
-  DEFAULT_CUSTOM_SHEET_SECTIONS,
-  VAMPIRE_SHEET_SECTIONS,
-  CYBERPUNK_SHEET_SECTIONS,
-  DEFAULT_MODULAR_SECTIONS
-} from '../../utils/contentPresets'
-import {
-  getFieldStyle,
-  getSectionStyle,
-  parseWidthPercent
+  DEFAULT_CANVAS_WIDTH,
+  DEFAULT_GRID_SIZE,
+  COMPONENT_CATALOG,
+  snap,
+  slugify,
+  createDefaultCanvasElement,
+  createDnd5eCanvasPreset,
+  convertSectionsToCanvas,
+  syncCanvasToSections
 } from '../../utils/sheetLayoutUtils'
-import { SHEET_THEME_LIST, getSheetTheme } from '../../utils/sheetThemes'
 import {
-  Plus,
+  Dices,
   Trash2,
-  ChevronUp,
-  ChevronDown,
   Copy,
-  LayoutGrid,
-  Dice5,
-  GripVertical,
-  Palette,
-  Settings2,
-  Play,
-  RotateCcw,
-  Move
+  Eye,
+  EyeOff,
+  Layers,
+  Settings,
+  Sparkles,
+  Check
 } from 'lucide-react'
-import VampireDotTrack from './VampireDotTrack'
-import DndAbilityBox from './DndAbilityBox'
-import {
-  DndScallopedCorner,
-  VampireTopOrnament
-} from './ThemedSectionDecorations'
 
 interface SheetLayoutBuilderProps {
-  sheetLayout: SheetLayoutConfig
+  sheetLayout?: SheetLayoutConfig
   onChangeLayout: (layout: SheetLayoutConfig) => void
 }
 
-function uid(): string {
-  return Math.random().toString(36).slice(2, 9)
-}
+type ActiveTool = 'select' | CanvasElementType
 
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-}
+type ResizeDirection = 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w'
 
 export default function SheetLayoutBuilder({
   sheetLayout,
   onChangeLayout
 }: SheetLayoutBuilderProps): React.JSX.Element {
-  // Inicializa seções a partir da configuração ou do preset padrão
-  const sections: SheetCustomSection[] = React.useMemo(() => {
-    if (sheetLayout.sections && sheetLayout.sections.length > 0) {
-      return sheetLayout.sections
+  // Inicializa o layout da tela Canvas livre
+  const initialCanvas: CanvasSheetLayout = useMemo(() => {
+    if (sheetLayout?.canvasLayout && sheetLayout.canvasLayout.elements.length > 0) {
+      return sheetLayout.canvasLayout
     }
-    return DEFAULT_CUSTOM_SHEET_SECTIONS
-  }, [sheetLayout.sections])
+    if (sheetLayout?.sections && sheetLayout.sections.length > 0) {
+      return convertSectionsToCanvas(sheetLayout.sections)
+    }
+    return createDnd5eCanvasPreset()
+  }, [])
 
-  // Modo unificado: 'edit' (com controles do construtor na ficha) ou 'test' (interativo puro para testar)
-  const [builderMode, setBuilderMode] = useState<'edit' | 'test'>('edit')
+  const [canvas, setCanvas] = useState<CanvasSheetLayout>(initialCanvas)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [activeTool, setActiveTool] = useState<ActiveTool>('select')
+  const [zoom, setZoom] = useState<number>(1)
+  const [snapEnabled, setSnapEnabled] = useState<boolean>(true)
+  const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false)
+  const [previewValues, setPreviewValues] = useState<Record<string, any>>({})
+  const [showPresetsMenu, setShowPresetsMenu] = useState<boolean>(false)
+  const [showLayersPanel] = useState<boolean>(true)
 
-  // Campo com gaveta de configurações avançadas expandida
-  const [expandedFieldSettingsId, setExpandedFieldSettingsId] = useState<string | null>(null)
-
-  // ── Drag & Drop Handlers para Campos (Reordenar) ──
-  const [draggedField, setDraggedField] = useState<{
-    sectionIndex: number
-    fieldIndex: number
-    fieldId: string
-  } | null>(null)
-
-  const [dropFieldTarget, setDropFieldTarget] = useState<{
-    sectionIndex: number
-    fieldIndex: number
-    position: 'before' | 'after'
-  } | null>(null)
-
-  const [dragOverSectionIndex, setDragOverSectionIndex] = useState<number | null>(null)
-
-  // ── Drag & Drop para Seções (Reordenar) ──
-  const [draggedSectionIndex, setDraggedSectionIndex] = useState<number | null>(null)
-  const [dropSectionIndex, setDropSectionIndex] = useState<number | null>(null)
-
-  // ── Redimensionamento Interativo em Tempo Real via Mouse Drag (Largura, Altura ou Ambas) ──
-  const [resizingTarget, setResizingTarget] = useState<{
-    type: 'field' | 'section'
-    direction: 'horizontal' | 'vertical' | 'both'
-    sectionIndex: number
-    fieldIndex?: number
+  // Referências para o Canvas e Drag/Resize
+  const canvasRef = useRef<HTMLDivElement>(null)
+  const [drawingRect, setDrawingRect] = useState<{
     startX: number
     startY: number
-    startPercent: number
-    startHeight: number
-    containerWidth: number
-    currentPercent: number
-    currentHeight: number
-    clientX: number
-    clientY: number
+    currentX: number
+    currentY: number
   } | null>(null)
 
-  const resizingTargetRef = useRef(resizingTarget)
-  resizingTargetRef.current = resizingTarget
+  const [draggingItem, setDraggingItem] = useState<{
+    id: string
+    startX: number
+    startY: number
+    elemOrigX: number
+    elemOrigY: number
+    childOffsets?: { id: string; x: number; y: number }[]
+  } | null>(null)
 
-  const sectionsRef = useRef(sections)
-  sectionsRef.current = sections
+  const [resizingItem, setResizingItem] = useState<{
+    id: string
+    direction: ResizeDirection
+    startX: number
+    startY: number
+    origX: number
+    origY: number
+    origW: number
+    origH: number
+  } | null>(null)
 
-  // ── Valores da Ficha para Pré-visualização Interativa em Tempo Real ──
-  const [previewValues, setPreviewValues] = useState<Record<string, string | number | boolean>>({
-    character_name: 'Valerius Ardent',
-    player_name: 'Jogador Aventureiro',
-    class: 'Guerreiro',
-    race: 'Humano',
-    species: 'Humano',
-    background: 'Soldado',
-    subclass: 'Campeão',
-    level: 5,
-    strength: 18,
-    dexterity: 14,
-    constitution: 16,
-    intelligence: 10,
-    wisdom: 12,
-    charisma: 8,
-    armor_class: 18,
-    hit_points: 44,
-    speed: '9m (30ft)',
-    concept: 'Ex-soldado da guarda real',
-    clan: 'Ventrue',
-    generation: '10ª',
-    nature: 'Líder',
-    demeanor: 'Nobre',
-    humanity: 7,
-    willpower: 6,
-    role: 'Solo Mercenário'
-  })
-
-  // Toast temporário de rolagem de dado durante teste
-  const [rollToast, setRollToast] = useState<{ title: string; result: string } | null>(null)
-
-  const currentThemeId = sheetLayout.theme || 'dnd'
-  const activeTheme = getSheetTheme(currentThemeId)
-  const isDndTheme = activeTheme.variant === 'dnd'
-  const isVampireTheme = activeTheme.variant === 'vampire'
-
-  const updateSections = (newSections: SheetCustomSection[]): void => {
-    onChangeLayout({
-      ...sheetLayout,
-      type: 'custom',
-      theme: sheetLayout.theme || 'dnd',
-      sections: newSections,
-      modularSections: sheetLayout.modularSections || DEFAULT_MODULAR_SECTIONS
-    })
-  }
-
-  const handleThemeChange = (newTheme: string): void => {
-    onChangeLayout({
-      ...sheetLayout,
-      theme: newTheme
-    })
-  }
-
-  // ── Ações de Redimensionamento Interativo Multidirecional via Mouse Drag ──
-  const handleStartResize = (
-    e: React.MouseEvent,
-    type: 'section' | 'field',
-    direction: 'horizontal' | 'vertical' | 'both',
-    sectionIndex: number,
-    fieldIndex?: number
-  ): void => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    let containerWidth = 1000
-    if (type === 'section') {
-      const wrapper = (e.currentTarget.closest('.sections-wrapper') as HTMLElement) || document.body
-      containerWidth = wrapper.getBoundingClientRect().width || 1000
-    } else {
-      const parentRow = (e.currentTarget.closest('.fields-wrapper') as HTMLElement) || document.body
-      containerWidth = parentRow.getBoundingClientRect().width || 800
-    }
-
-    const currentSec = sections[sectionIndex]
-    const currentField = fieldIndex !== undefined ? currentSec?.fields[fieldIndex] : undefined
-
-    const startPercent =
-      type === 'section'
-        ? parseWidthPercent(currentSec?.width, currentSec?.customWidth)
-        : parseWidthPercent(currentField?.width, currentField?.customWidth)
-
-    // Mede a altura atual em tela
-    const cardEl = e.currentTarget.closest(
-      type === 'section' ? '.section-card-container' : '.field-card-container'
-    ) as HTMLElement | null
-    const elementHeight = cardEl
-      ? cardEl.getBoundingClientRect().height
-      : type === 'section'
-        ? currentSec?.customHeight || 160
-        : currentField?.customHeight || 60
-    const startHeight = Math.round(elementHeight)
-
-    setResizingTarget({
-      type,
-      direction,
-      sectionIndex,
-      fieldIndex,
-      startX: e.clientX,
-      startY: e.clientY,
-      startPercent,
-      startHeight,
-      containerWidth,
-      currentPercent: startPercent,
-      currentHeight: startHeight,
-      clientX: e.clientX,
-      clientY: e.clientY
-    })
-  }
-
-  const handleResetHeight = (
-    type: 'section' | 'field',
-    sectionIndex: number,
-    fieldIndex?: number
-  ): void => {
-    const currentSecs = [...sections]
-    if (type === 'section') {
-      const updatedSec = { ...currentSecs[sectionIndex] }
-      delete updatedSec.customHeight
-      currentSecs[sectionIndex] = updatedSec
-      updateSections(currentSecs)
-    } else if (type === 'field' && fieldIndex !== undefined) {
-      const secFields = [...currentSecs[sectionIndex].fields]
-      const updatedField = { ...secFields[fieldIndex] }
-      delete updatedField.customHeight
-      secFields[fieldIndex] = updatedField
-      currentSecs[sectionIndex] = {
-        ...currentSecs[sectionIndex],
-        fields: secFields
-      }
-      updateSections(currentSecs)
-    }
-  }
-
-  // Listener global de mouse para arrastar e redimensionar suavemente em qualquer direção
-  useEffect(() => {
-    if (!resizingTarget) return
-
-    const handleMouseMove = (e: MouseEvent): void => {
-      e.preventDefault()
-      const target = resizingTargetRef.current
-      if (!target) return
-
-      let newPercent = target.currentPercent
-      let newHeight = target.currentHeight
-
-      if (target.direction === 'horizontal' || target.direction === 'both') {
-        const deltaX = e.clientX - target.startX
-        const deltaPercent = (deltaX / target.containerWidth) * 100
-        newPercent = Math.round(target.startPercent + deltaPercent)
-
-        const minVal = target.type === 'section' ? 20 : 10
-        newPercent = Math.min(100, Math.max(minVal, newPercent))
-
-        // Snapping inteligente aos pontos notáveis (25%, 33%, 50%, 67%, 75%, 100%)
-        if (Math.abs(newPercent - 25) <= 2) newPercent = 25
-        else if (Math.abs(newPercent - 33.3) <= 2) newPercent = 33
-        else if (Math.abs(newPercent - 50) <= 2) newPercent = 50
-        else if (Math.abs(newPercent - 66.7) <= 2) newPercent = 67
-        else if (Math.abs(newPercent - 75) <= 2) newPercent = 75
-        else if (newPercent >= 97) newPercent = 100
-      }
-
-      if (target.direction === 'vertical' || target.direction === 'both') {
-        const deltaY = e.clientY - target.startY
-        newHeight = Math.round(target.startHeight + deltaY)
-        const minHeight = target.type === 'section' ? 60 : 32
-        const maxHeight = target.type === 'section' ? 1400 : 800
-        newHeight = Math.min(maxHeight, Math.max(minHeight, newHeight))
-
-        // Snapping suave para múltiplos de 10px
-        const remainder = newHeight % 10
-        if (remainder <= 2) newHeight -= remainder
-        else if (remainder >= 8) newHeight += 10 - remainder
-      }
-
-      setResizingTarget((prev) =>
-        prev
-          ? {
-              ...prev,
-              currentPercent: newPercent,
-              currentHeight: newHeight,
-              clientX: e.clientX,
-              clientY: e.clientY
-            }
-          : null
-      )
-
-      // Atualiza o estado da ficha em tempo real
-      const currentSecs = sectionsRef.current
-      if (target.type === 'section') {
-        const updated = [...currentSecs]
-        updated[target.sectionIndex] = {
-          ...updated[target.sectionIndex],
-          ...(target.direction !== 'vertical'
-            ? { customWidth: newPercent, width: `${newPercent}%` }
-            : {}),
-          ...(target.direction !== 'horizontal'
-            ? { customHeight: newHeight }
-            : {})
-        }
-        updateSections(updated)
-      } else if (target.type === 'field' && target.fieldIndex !== undefined) {
-        const updated = [...currentSecs]
-        const secFields = [...updated[target.sectionIndex].fields]
-        secFields[target.fieldIndex] = {
-          ...secFields[target.fieldIndex],
-          ...(target.direction !== 'vertical'
-            ? { customWidth: newPercent, width: `${newPercent}%` }
-            : {}),
-          ...(target.direction !== 'horizontal'
-            ? { customHeight: newHeight }
-            : {})
-        }
-        updated[target.sectionIndex] = {
-          ...updated[target.sectionIndex],
-          fields: secFields
-        }
-        updateSections(updated)
-      }
-    }
-
-    const handleMouseUp = (): void => {
-      setResizingTarget(null)
-    }
-
-    window.addEventListener('mousemove', handleMouseMove)
-    window.addEventListener('mouseup', handleMouseUp)
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove)
-      window.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [resizingTarget !== null])
-
-  // ── Ações de Seção ──
-  const handleAddSection = (): void => {
-    const newSec: SheetCustomSection = {
-      id: `sec-${uid()}`,
-      title: 'Nova Seção',
-      description: '',
-      width: 'full',
-      customWidth: 100,
-      fields: []
-    }
-    const updated = [...sections, newSec]
-    updateSections(updated)
-  }
-
-  const handleUpdateSection = (index: number, updatedSec: SheetCustomSection): void => {
-    const updated = [...sections]
-    updated[index] = updatedSec
-    updateSections(updated)
-  }
-
-  const handleRemoveSection = (index: number): void => {
-    if (sections.length <= 1) {
-      alert('A ficha deve possuir pelo menos uma seção.')
-      return
-    }
-    if (!confirm(`Remover a seção "${sections[index].title}" e todos os seus campos?`)) return
-    const updated = sections.filter((_, i) => i !== index)
-    updateSections(updated)
-  }
-
-  const handleMoveSection = (index: number, direction: 'up' | 'down'): void => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1
-    if (targetIndex < 0 || targetIndex >= sections.length) return
-    const updated = [...sections]
-    const [moved] = updated.splice(index, 1)
-    updated.splice(targetIndex, 0, moved)
-    updateSections(updated)
-  }
-
-  // ── Ações de Campo ──
-  const handleAddField = (sectionIndex: number): void => {
-    const newField: SheetCustomField = {
-      id: `f-${uid()}`,
-      key: `campo_${uid().slice(0, 4)}`,
-      label: 'Novo Campo',
-      type: 'text',
-      width: '1/2',
-      customWidth: 50,
-      placeholder: ''
-    }
-    const updated = [...sections]
-    updated[sectionIndex] = {
-      ...updated[sectionIndex],
-      fields: [...updated[sectionIndex].fields, newField]
-    }
-    updateSections(updated)
-    setExpandedFieldSettingsId(newField.id)
-  }
-
-  const handleUpdateField = (
-    sectionIndex: number,
-    fieldIndex: number,
-    updatedField: SheetCustomField
-  ): void => {
-    const updated = [...sections]
-    const secFields = [...updated[sectionIndex].fields]
-    secFields[fieldIndex] = updatedField
-    updated[sectionIndex] = {
-      ...updated[sectionIndex],
-      fields: secFields
-    }
-    updateSections(updated)
-  }
-
-  const handleRemoveField = (sectionIndex: number, fieldIndex: number): void => {
-    const updated = [...sections]
-    updated[sectionIndex] = {
-      ...updated[sectionIndex],
-      fields: updated[sectionIndex].fields.filter((_, i) => i !== fieldIndex)
-    }
-    updateSections(updated)
-  }
-
-  const handleDuplicateField = (sectionIndex: number, fieldIndex: number): void => {
-    const original = sections[sectionIndex].fields[fieldIndex]
-    const duplicated: SheetCustomField = {
-      ...original,
-      id: `f-${uid()}`,
-      key: `${original.key}_copy`,
-      label: `${original.label} (Cópia)`
-    }
-    const updated = [...sections]
-    const secFields = [...updated[sectionIndex].fields]
-    secFields.splice(fieldIndex + 1, 0, duplicated)
-    updated[sectionIndex] = {
-      ...updated[sectionIndex],
-      fields: secFields
-    }
-    updateSections(updated)
-  }
-
-  const handleApplyPreset = (
-    presetSections: SheetCustomSection[],
-    newTheme: string,
-    presetName: string
-  ): void => {
-    if (
-      confirm(
-        `Carregar o modelo oficial de ${presetName}? As seções e campos atuais serão substituídos pelo modelo oficial.`
-      )
-    ) {
+  // Atualiza pai com sincronização dupla (canvasLayout + sections legadas sincronizadas)
+  const commitCanvas = useCallback(
+    (newCanvas: CanvasSheetLayout) => {
+      setCanvas(newCanvas)
+      const syncedSections = syncCanvasToSections(newCanvas)
       onChangeLayout({
-        ...sheetLayout,
-        type: 'custom',
-        theme: newTheme,
-        sections: presetSections,
-        modularSections: sheetLayout.modularSections || DEFAULT_MODULAR_SECTIONS
+        ...(sheetLayout || { modularSections: [] }),
+        type: 'canvas',
+        canvasLayout: newCanvas,
+        sections: syncedSections
       })
-    }
-  }
+    },
+    [onChangeLayout, sheetLayout]
+  )
 
-  // ── Drag & Drop Handlers para Campos na Grade Visual ──
-  const handleFieldDragStart = (
-    e: React.DragEvent,
-    sectionIndex: number,
-    fieldIndex: number,
-    field: SheetCustomField
-  ): void => {
-    e.stopPropagation()
-    setDraggedField({ sectionIndex, fieldIndex, fieldId: field.id })
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData(
-      'application/json',
-      JSON.stringify({ fromSec: sectionIndex, fromField: fieldIndex, fieldId: field.id })
-    )
-  }
+  // Elemento selecionado atualmente
+  const selectedElement = useMemo(() => {
+    return canvas.elements.find((e) => e.id === selectedId) || null
+  }, [canvas.elements, selectedId])
 
-  const handleFieldDragOver = (
-    e: React.DragEvent,
-    sectionIndex: number,
-    fieldIndex: number
-  ): void => {
-    if (!draggedField) return
-    e.preventDefault()
-    e.stopPropagation()
-    e.dataTransfer.dropEffect = 'move'
+  // Modifica propriedades do elemento selecionado
+  const updateElement = useCallback(
+    (id: string, patch: Partial<CanvasElement>) => {
+      const nextElements = canvas.elements.map((el) => {
+        if (el.id !== id) return el
+        return { ...el, ...patch }
+      })
+      commitCanvas({ ...canvas, elements: nextElements })
+    },
+    [canvas, commitCanvas]
+  )
 
-    if (draggedField.sectionIndex === sectionIndex && draggedField.fieldIndex === fieldIndex) {
-      return
-    }
+  // Deleta o elemento selecionado e seus filhos
+  const deleteElement = useCallback(
+    (id: string) => {
+      const nextElements = canvas.elements.filter((el) => el.id !== id && el.parentId !== id)
+      commitCanvas({ ...canvas, elements: nextElements })
+      if (selectedId === id) setSelectedId(null)
+    },
+    [canvas, commitCanvas, selectedId]
+  )
 
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    const position: 'before' | 'after' =
-      e.clientX < rect.left + rect.width / 2 ? 'before' : 'after'
+  // Duplica o elemento selecionado
+  const duplicateElement = useCallback(
+    (id: string) => {
+      const target = canvas.elements.find((e) => e.id === id)
+      if (!target) return
+      const newId = `${target.type}_${Math.random().toString(36).substr(2, 7)}`
+      const offset = 24
 
-    if (
-      !dropFieldTarget ||
-      dropFieldTarget.sectionIndex !== sectionIndex ||
-      dropFieldTarget.fieldIndex !== fieldIndex ||
-      dropFieldTarget.position !== position
-    ) {
-      setDropFieldTarget({ sectionIndex, fieldIndex, position })
-    }
-  }
-
-  const handleFieldDrop = (
-    e: React.DragEvent,
-    targetSecIndex: number,
-    targetFieldIndex: number
-  ): void => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (!draggedField) return
-    const fromSec = draggedField.sectionIndex
-    const fromField = draggedField.fieldIndex
-
-    if (fromSec === targetSecIndex && fromField === targetFieldIndex) {
-      setDraggedField(null)
-      setDropFieldTarget(null)
-      return
-    }
-
-    const updatedSections = sections.map((s) => ({
-      ...s,
-      fields: [...s.fields]
-    }))
-
-    const [movedField] = updatedSections[fromSec].fields.splice(fromField, 1)
-
-    let insertAt = targetFieldIndex
-    if (dropFieldTarget?.position === 'after') {
-      insertAt += 1
-    }
-    if (fromSec === targetSecIndex && fromField < insertAt) {
-      insertAt -= 1
-    }
-
-    insertAt = Math.max(0, Math.min(insertAt, updatedSections[targetSecIndex].fields.length))
-    updatedSections[targetSecIndex].fields.splice(insertAt, 0, movedField)
-
-    updateSections(updatedSections)
-    setDraggedField(null)
-    setDropFieldTarget(null)
-    setDragOverSectionIndex(null)
-  }
-
-  const handleSectionDrop = (e: React.DragEvent, targetSecIndex: number): void => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    if (draggedField) {
-      const fromSec = draggedField.sectionIndex
-      const fromField = draggedField.fieldIndex
-      if (fromSec !== targetSecIndex) {
-        const updatedSections = sections.map((s) => ({ ...s, fields: [...s.fields] }))
-        const [moved] = updatedSections[fromSec].fields.splice(fromField, 1)
-        updatedSections[targetSecIndex].fields.push(moved)
-        updateSections(updatedSections)
+      const duplicated: CanvasElement = {
+        ...target,
+        id: newId,
+        name: `${target.name} (Cópia)`,
+        x: target.x + offset,
+        y: target.y + offset,
+        key: target.key ? `${target.key}_copia` : undefined
       }
-      setDraggedField(null)
-      setDropFieldTarget(null)
-      setDragOverSectionIndex(null)
+
+      // Se for um frame, duplica os filhos também
+      let childrenCopies: CanvasElement[] = []
+      if (target.type === 'frame') {
+        const children = canvas.elements.filter((e) => e.parentId === target.id)
+        childrenCopies = children.map((c) => ({
+          ...c,
+          id: `${c.type}_${Math.random().toString(36).substr(2, 7)}`,
+          parentId: newId,
+          key: c.key ? `${c.key}_copia` : undefined
+        }))
+      }
+
+      commitCanvas({
+        ...canvas,
+        elements: [...canvas.elements, duplicated, ...childrenCopies]
+      })
+      setSelectedId(newId)
+    },
+    [canvas, commitCanvas]
+  )
+
+  // Atalhos de teclado (Figma standard)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent): void => {
+      // Ignorar se estiver digitando em um input
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
+        return
+      }
+
+      if (e.key === 'v' || e.key === 'V') setActiveTool('select')
+      else if (e.key === 'f' || e.key === 'F') setActiveTool('frame')
+      else if (e.key === 't' || e.key === 'T') setActiveTool('text_field')
+      else if (e.key === 'l' || e.key === 'L') setActiveTool('label')
+      else if (e.key === 's' || e.key === 'S') setActiveTool('stat')
+      else if (e.key === 'a' || e.key === 'A') setActiveTool('textarea')
+      else if (e.key === 'd' || e.key === 'D') setActiveTool('dots')
+      else if (e.key === 'c' || e.key === 'C') setActiveTool('checkbox')
+      else if (e.key === 'r' || e.key === 'R') setActiveTool('divider')
+      else if (e.key === 'Escape') {
+        setActiveTool('select')
+        setSelectedId(null)
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedId) deleteElement(selectedId)
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'd' || e.key === 'D')) {
+        e.preventDefault()
+        if (selectedId) duplicateElement(selectedId)
+      } else if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && selectedId) {
+        e.preventDefault()
+        const step = e.shiftKey ? 8 : 1
+        const elem = canvas.elements.find((el) => el.id === selectedId)
+        if (elem && !elem.locked) {
+          let nx = elem.x
+          let ny = elem.y
+          if (e.key === 'ArrowUp') ny -= step
+          if (e.key === 'ArrowDown') ny += step
+          if (e.key === 'ArrowLeft') nx -= step
+          if (e.key === 'ArrowRight') nx += step
+          updateElement(selectedId, { x: Math.max(0, nx), y: Math.max(0, ny) })
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selectedId, canvas.elements, deleteElement, duplicateElement, updateElement])
+
+  // Mouse Handlers para Criação / Drag / Resize
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (isPreviewMode) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    const rawX = (e.clientX - rect.left) / zoom
+    const rawY = (e.clientY - rect.top) / zoom
+    const clickX = snap(rawX, canvas.gridSize, snapEnabled)
+    const clickY = snap(rawY, canvas.gridSize, snapEnabled)
+
+    // Se estiver com ferramenta de criação ativa
+    if (activeTool !== 'select') {
+      setDrawingRect({
+        startX: clickX,
+        startY: clickY,
+        currentX: clickX,
+        currentY: clickY
+      })
       return
     }
 
-    if (draggedSectionIndex !== null && draggedSectionIndex !== targetSecIndex) {
-      const updated = [...sections]
-      const [movedSec] = updated.splice(draggedSectionIndex, 1)
-      updated.splice(targetSecIndex, 0, movedSec)
-      updateSections(updated)
-      setDraggedSectionIndex(null)
-      setDropSectionIndex(null)
+    // Clique no fundo limpa a seleção
+    if (e.target === canvasRef.current || (e.target as HTMLElement).dataset.canvasBg) {
+      setSelectedId(null)
     }
   }
 
-  const handleDragEnd = (): void => {
-    setDraggedField(null)
-    setDropFieldTarget(null)
-    setDragOverSectionIndex(null)
-    setDraggedSectionIndex(null)
-    setDropSectionIndex(null)
-  }
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (isPreviewMode) return
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (!rect) return
 
-  const triggerMockRoll = (label: string, val: string | number | boolean, formula?: string): void => {
-    let result = ''
-    if (activeTheme.variant === 'vampire') {
-      const dice = Math.max(1, Number(val) || 1)
-      const rolls = Array.from({ length: dice }, () => Math.floor(Math.random() * 10) + 1)
-      const successes = rolls.filter((r) => r >= 6).length
-      result = `${dice}d10 (dif 6) ➔ [${rolls.join(', ')}] : ${successes} Sucesso(s)!`
-    } else {
-      const num = Number(val) || 0
-      const d20 = Math.floor(Math.random() * 20) + 1
-      const total = d20 + num
-      result = `d20 (${d20}) ${num >= 0 ? `+${num}` : num} = ${total} (fórmula: ${formula || '1d20+mod'})`
+    const currentX = (e.clientX - rect.left) / zoom
+    const currentY = (e.clientY - rect.top) / zoom
+
+    // 1. Desenhando novo elemento por drag
+    if (drawingRect) {
+      setDrawingRect((prev) => (prev ? { ...prev, currentX, currentY } : null))
+      return
     }
-    setRollToast({
-      title: `Teste: ${label}`,
-      result
-    })
-    setTimeout(() => setRollToast(null), 3500)
+
+    // 2. Redimensionando elemento selecionado
+    if (resizingItem) {
+      const { id, direction, startX, startY, origX, origY, origW, origH } = resizingItem
+      const dx = currentX - startX
+      const dy = currentY - startY
+
+      let newX = origX
+      let newY = origY
+      let newW = origW
+      let newH = origH
+
+      if (direction.includes('e')) newW = Math.max(40, origW + dx)
+      if (direction.includes('s')) newH = Math.max(24, origH + dy)
+      if (direction.includes('w')) {
+        const potentialW = origW - dx
+        if (potentialW >= 40) {
+          newW = potentialW
+          newX = origX + dx
+        }
+      }
+      if (direction.includes('n')) {
+        const potentialH = origH - dy
+        if (potentialH >= 24) {
+          newH = potentialH
+          newY = origY + dy
+        }
+      }
+
+      if (snapEnabled) {
+        newX = snap(newX, canvas.gridSize)
+        newY = snap(newY, canvas.gridSize)
+        newW = snap(newW, canvas.gridSize)
+        newH = snap(newH, canvas.gridSize)
+      }
+
+      updateElement(id, { x: newX, y: newY, width: newW, height: newH })
+      return
+    }
+
+    // 3. Arrastando elemento na tela livre
+    if (draggingItem) {
+      const { id, startX, startY, elemOrigX, elemOrigY } = draggingItem
+      const dx = currentX - startX
+      const dy = currentY - startY
+
+      let nx = elemOrigX + dx
+      let ny = elemOrigY + dy
+
+      if (snapEnabled) {
+        nx = snap(nx, canvas.gridSize)
+        ny = snap(ny, canvas.gridSize)
+      }
+
+      updateElement(id, { x: Math.max(0, nx), y: Math.max(0, ny) })
+    }
   }
 
-  const totalFields = sections.reduce((sum, s) => sum + s.fields.length, 0)
+  const handleMouseUp = (): void => {
+    // 1. Finaliza criação de novo elemento desenhado
+    if (drawingRect && activeTool !== 'select') {
+      const { startX, startY, currentX, currentY } = drawingRect
+      let x = Math.min(startX, currentX)
+      let y = Math.min(startY, currentY)
+      let w = Math.abs(currentX - startX)
+      let h = Math.abs(currentY - startY)
+
+      const cat = COMPONENT_CATALOG.find((c) => c.type === activeTool)
+      // Se deu apenas um clique (sem arrastar muito), usa dimensões padrão
+      if (w < 20 || h < 20) {
+        w = cat?.defaultWidth || 200
+        h = cat?.defaultHeight || 52
+      }
+
+      if (snapEnabled) {
+        x = snap(x, canvas.gridSize)
+        y = snap(y, canvas.gridSize)
+        w = snap(w, canvas.gridSize)
+        h = snap(h, canvas.gridSize)
+      }
+
+      // Se foi criado sobre um Frame existente (e não é um Frame), adiciona como filho do Frame
+      let parentFrameId: string | null = null
+      let relativeX = x
+      let relativeY = y
+
+      if (activeTool !== 'frame') {
+        const targetFrame = canvas.elements.find(
+          (e) =>
+            e.type === 'frame' &&
+            !e.parentId &&
+            x >= e.x &&
+            x <= e.x + e.width &&
+            y >= e.y &&
+            y <= e.y + e.height
+        )
+
+        if (targetFrame) {
+          parentFrameId = targetFrame.id
+          relativeX = Math.max(8, x - targetFrame.x)
+          relativeY = Math.max(38, y - targetFrame.y)
+        }
+      }
+
+      const newElem = createDefaultCanvasElement(activeTool, relativeX, relativeY, parentFrameId)
+      newElem.width = w
+      newElem.height = h
+
+      commitCanvas({
+        ...canvas,
+        elements: [...canvas.elements, newElem]
+      })
+
+      setSelectedId(newElem.id)
+      setActiveTool('select') // Retorna automaticamente para o ponteiro de seleção (Figma standard)
+      setDrawingRect(null)
+      return
+    }
+
+    // 2. Finaliza drag e verifica se elemento caiu dentro de um Frame
+    if (draggingItem) {
+      const target = canvas.elements.find((e) => e.id === draggingItem.id)
+      if (target && target.type !== 'frame') {
+        // Posição absoluta do elemento na tela
+        const currentAbsoluteX = target.parentId
+          ? (canvas.elements.find((e) => e.id === target.parentId)?.x || 0) + target.x
+          : target.x
+        const currentAbsoluteY = target.parentId
+          ? (canvas.elements.find((e) => e.id === target.parentId)?.y || 0) + target.y
+          : target.y
+
+        // Encontra se está dentro de algum Frame
+        const dropFrame = canvas.elements.find(
+          (e) =>
+            e.type === 'frame' &&
+            !e.parentId &&
+            currentAbsoluteX >= e.x &&
+            currentAbsoluteX <= e.x + e.width &&
+            currentAbsoluteY >= e.y &&
+            currentAbsoluteY <= e.y + e.height
+        )
+
+        if (dropFrame) {
+          // Converte para coordenadas relativas ao novo Frame
+          const relX = snap(currentAbsoluteX - dropFrame.x, canvas.gridSize, snapEnabled)
+          const relY = snap(currentAbsoluteY - dropFrame.y, canvas.gridSize, snapEnabled)
+          updateElement(target.id, {
+            parentId: dropFrame.id,
+            x: Math.max(8, relX),
+            y: Math.max(36, relY)
+          })
+        } else if (target.parentId) {
+          // Foi arrastado para fora de um Frame para o Canvas livre
+          updateElement(target.id, {
+            parentId: null,
+            x: currentAbsoluteX,
+            y: currentAbsoluteY
+          })
+        }
+      }
+      setDraggingItem(null)
+    }
+
+    if (resizingItem) setResizingItem(null)
+    if (drawingRect) setDrawingRect(null)
+  }
+
+  // Organização dos elementos: Frames e elementos avulsos
+  const frames = useMemo(() => {
+    return canvas.elements.filter((e) => e.type === 'frame' && !e.parentId)
+  }, [canvas.elements])
+
+  const looseElements = useMemo(() => {
+    return canvas.elements.filter((e) => e.type !== 'frame' && !e.parentId)
+  }, [canvas.elements])
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* ── BARRA SUPERIOR UNIFICADA DE PERSONALIZAÇÃO & MODELOS ── */}
-      <div className="bg-neutral-950 border border-neutral-800 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-xl">
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Seletor de Tema Visual em Tempo Real */}
-          <div className="flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-xl shadow-inner">
-            <Palette className="w-4 h-4 text-vtt-golden shrink-0" />
-            <span className="text-xs font-bold text-neutral-300 whitespace-nowrap">
-              Tema Visual:
-            </span>
-            <select
-              value={currentThemeId}
-              onChange={(e) => handleThemeChange(e.target.value)}
-              className="bg-neutral-800 border border-neutral-700 hover:border-vtt-golden rounded-lg text-xs font-bold text-vtt-golden py-1.5 px-2.5 outline-none focus:border-vtt-golden transition-colors cursor-pointer"
-              title="Escolha o tema visual inspirado nas fichas oficiais"
-            >
-              {SHEET_THEME_LIST.map((th) => (
-                <option
-                  key={th.id}
-                  value={th.id}
-                  className="bg-neutral-900 text-neutral-100 font-normal"
-                >
-                  {th.icon} {th.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Alternador de Modo: Edição Direta vs Teste / Simulação */}
-          <div className="flex items-center bg-neutral-900 p-1 rounded-xl border border-neutral-800">
-            <button
-              type="button"
-              onClick={() => setBuilderMode('edit')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                builderMode === 'edit'
-                  ? 'bg-vtt-golden text-neutral-950 shadow-md'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-              title="Edite e organize os campos diretamente no layout da ficha"
-            >
-              <span>✏️ Modo Editor</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setBuilderMode('test')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                builderMode === 'test'
-                  ? 'bg-vtt-golden text-neutral-950 shadow-md'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-              title="Simule o uso da ficha como jogador ou mestre em tempo real"
-            >
-              <Play className="w-3.5 h-3.5" />
-              <span>🎲 Testar / Simular</span>
-            </button>
-          </div>
-
-          <span className="text-xs text-neutral-400 pl-1 hidden lg:inline">
-            <strong className="text-vtt-golden">{sections.length}</strong> seções •{' '}
-            <strong className="text-vtt-golden">{totalFields}</strong> campos
-          </span>
-        </div>
-
-        {/* Botões de Modelos Rápidos Oficiais */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <button
-            type="button"
-            onClick={() => handleApplyPreset(DEFAULT_CUSTOM_SHEET_SECTIONS, 'dnd', 'D&D 5e (2024)')}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-stone-200 hover:text-white transition-colors cursor-pointer border border-neutral-700"
-            title="Preencher com ficha oficial de D&D 2024 (Imagem 2)"
-          >
-            <span>⚔️</span>
-            <span>D&D 5e</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleApplyPreset(VAMPIRE_SHEET_SECTIONS, 'gothic', 'Vampiro: A Máscara')}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-neutral-200 hover:text-white transition-colors cursor-pointer border border-neutral-700"
-            title="Preencher com ficha oficial de Vampiro: A Máscara (Imagem 1)"
-          >
-            <span>🦇</span>
-            <span>Vampiro (VTM)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleApplyPreset(CYBERPUNK_SHEET_SECTIONS, 'cyberpunk', 'Cyberpunk RED')}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-neutral-900 hover:bg-neutral-800 text-red-400 hover:text-red-300 transition-colors cursor-pointer border border-neutral-700"
-            title="Preencher com ficha oficial de Cyberpunk RED"
-          >
-            <span>⚡</span>
-            <span>Cyberpunk RED</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleAddSection}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-vtt-golden text-neutral-950 hover:bg-[#FBE8A6] transition-colors cursor-pointer shadow-md ml-1"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Nova Seção</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Pílulas de Seleção Rápida de Tema */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]">
-        {SHEET_THEME_LIST.map((th) => (
-          <button
-            key={th.id}
-            type="button"
-            onClick={() => handleThemeChange(th.id)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer whitespace-nowrap border shrink-0 ${
-              currentThemeId === th.id
-                ? 'bg-vtt-golden/20 text-vtt-golden border-vtt-golden shadow-sm'
-                : 'bg-neutral-900/60 border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700'
-            }`}
-          >
-            <span>{th.icon}</span>
-            <span>{th.name.split('/')[0].trim()}</span>
-          </button>
-        ))}
-      </div>
-
-      {/* Toast flutuante de rolagem de teste */}
-      {rollToast && (
-        <div className="fixed bottom-6 right-6 z-50 bg-neutral-900 border-2 border-vtt-golden text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 animate-bounce">
-          <Dice5 className="w-6 h-6 text-vtt-golden animate-spin" />
-          <div>
-            <p className="text-xs font-bold text-vtt-golden uppercase">{rollToast.title}</p>
-            <p className="text-sm font-mono font-bold text-white">{rollToast.result}</p>
-          </div>
-        </div>
-      )}
-
-      {/* Feedback Flutuante enquanto Redimensiona via Mouse Drag */}
-      {resizingTarget && (
-        <div
-          className="fixed pointer-events-none z-50 bg-neutral-900/95 border-2 border-vtt-golden text-white px-3.5 py-1.5 rounded-xl text-xs font-mono font-bold shadow-2xl flex items-center gap-2 backdrop-blur-md"
-          style={{
-            left: Math.min(window.innerWidth - 220, resizingTarget.clientX + 16),
-            top: Math.max(16, resizingTarget.clientY - 36)
-          }}
+    <div className="flex flex-col h-[calc(100vh-140px)] min-h-[680px] bg-neutral-950 text-neutral-100 select-none overflow-hidden rounded-xl border border-neutral-800 shadow-2xl relative">
+      {/* ─────────────────────────────────────────────────────────────
+          1. TOP FLOATING FIGMA TOOLBAR
+      ───────────────────────────────────────────────────────────── */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-neutral-900/90 border border-neutral-700/80 shadow-[0_12px_32px_rgba(0,0,0,0.7)] backdrop-blur-md">
+        {/* Tool: Select / Cursor */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('select')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'select'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Selecionar / Mover (V)"
         >
-          <Move className="w-3.5 h-3.5 text-vtt-golden shrink-0" />
-          <span className="text-neutral-300">
-            {resizingTarget.type === 'field' ? 'Campo:' : 'Seção:'}
-          </span>
-          <span className="text-vtt-golden font-black">
-            {resizingTarget.direction !== 'vertical' && `L: ${resizingTarget.currentPercent}%`}
-            {resizingTarget.direction === 'both' && ' × '}
-            {resizingTarget.direction !== 'horizontal' && `A: ${resizingTarget.currentHeight}px`}
-          </span>
-        </div>
-      )}
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M4 3l14 10.5-6.5 1.5 4 7-2.5 1.5-4-7-5 4.5z" />
+          </svg>
+          <span className="hidden sm:inline">Mover</span>
+        </button>
 
-      {/* ── TELA PRINCIPAL: A FICHA VISUAL REAL EM TEMPO REAL ── */}
-      <div
-        className={`flex flex-col gap-6 max-w-6xl mx-auto w-full p-4 sm:p-6 rounded-3xl transition-all duration-300 shadow-2xl border ${
-          builderMode === 'edit'
-            ? 'ring-1 ring-vtt-golden/30'
-            : ''
-        } ${activeTheme.styles.wrapper}`}
-      >
-        {/* Banner do Tema Ativo */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-2.5 px-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">{activeTheme.icon}</span>
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-neutral-300 font-cinzel">
-                {activeTheme.name}
+        {/* Tool: Frame (Container) */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('frame')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'frame'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Quadro / Frame para admitir campos (F)"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <path d="M9 3v18M15 3v18M3 9h18M3 15h18" strokeDasharray="2 2" />
+          </svg>
+          <span className="hidden sm:inline">Frame</span>
+        </button>
+
+        {/* Tool: Text Field (Input Text / Number) */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('text_field')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'text_field'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Campo de Entrada (Texto ou Número) (T)"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="6" width="18" height="12" rx="2" />
+            <path d="M7 12h10" />
+          </svg>
+          <span className="hidden sm:inline">Campo</span>
+        </button>
+
+        {/* Tool: Label (Display Text) */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('label')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'label'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Rótulo / Texto Estático (L)"
+        >
+          <span className="text-sm font-serif font-black">Tt</span>
+          <span className="hidden sm:inline">Texto</span>
+        </button>
+
+        {/* Tool: Stat Box (RPG Ability / Mod) */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('stat')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'stat'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Box de Atributo D&D / RPG (S)"
+        >
+          <Dices className="w-4 h-4" />
+          <span className="hidden sm:inline">Atributo</span>
+        </button>
+
+        {/* Tool: Textarea (Multi-line Notes) */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('textarea')}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'textarea'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Área de Texto Multilinha (A)"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 6h16M4 12h16M4 18h10" />
+          </svg>
+        </button>
+
+        {/* Tool: Dot Track (VTM / Pips) */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('dots')}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'dots'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Trilha de Pontos / Marcadores (D)"
+        >
+          <span className="text-xs tracking-tighter">●●●</span>
+        </button>
+
+        {/* Tool: Checkbox */}
+        <button
+          type="button"
+          onClick={() => setActiveTool('checkbox')}
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            activeTool === 'checkbox'
+              ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+              : 'text-neutral-400 hover:text-white hover:bg-neutral-800/80'
+          }`}
+          title="Marcador / Checkbox (C)"
+        >
+          <Check className="w-4 h-4" />
+        </button>
+
+        <div className="w-px h-5 bg-neutral-700 mx-1" />
+
+        {/* Toggle Snap to Grid */}
+        <button
+          type="button"
+          onClick={() => setSnapEnabled(!snapEnabled)}
+          className={`px-2.5 py-1.5 rounded-lg text-xs font-mono font-medium transition-colors ${
+            snapEnabled
+              ? 'text-vtt-golden bg-vtt-golden/10 border border-vtt-golden/30'
+              : 'text-neutral-500 hover:text-neutral-300'
+          }`}
+          title="Encaixe Magnético na Grade (Snap 8px)"
+        >
+          #{canvas.gridSize}px
+        </button>
+
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-1 text-xs text-neutral-400 bg-neutral-800/80 px-2 py-1 rounded-lg">
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.1).toFixed(1))))}
+            className="hover:text-white font-mono px-1"
+            title="Reduzir Zoom"
+          >
+            -
+          </button>
+          <span className="font-mono text-[11px] min-w-[34px] text-center">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => setZoom((z) => Math.min(1.8, Number((z + 0.1).toFixed(1))))}
+            className="hover:text-white font-mono px-1"
+            title="Aumentar Zoom"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => setZoom(1)}
+            className="text-[10px] text-neutral-400 hover:text-vtt-golden ml-1 border-l border-neutral-700 pl-1"
+            title="Restaurar 100%"
+          >
+            1:1
+          </button>
+        </div>
+
+        {/* Presets Menu */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowPresetsMenu(!showPresetsMenu)}
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
+            title="Carregar Modelos / Presets"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-vtt-golden" />
+            <span className="hidden md:inline">Modelos</span>
+          </button>
+
+          {showPresetsMenu && (
+            <div className="absolute right-0 top-full mt-2 w-56 bg-neutral-900 border border-neutral-700 rounded-xl shadow-2xl p-2 z-50 flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-neutral-500 uppercase px-2 py-1">
+                Presets de Ficha
               </span>
-              <span className="text-[10px] font-mono ml-2 px-2 py-0.5 rounded-full bg-white/10 text-neutral-300">
-                {activeTheme.tag}
+              <button
+                type="button"
+                onClick={() => {
+                  commitCanvas(createDnd5eCanvasPreset())
+                  setShowPresetsMenu(false)
+                }}
+                className="text-left px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-neutral-800 rounded-lg flex items-center justify-between"
+              >
+                <span>D&D 5ª Edição Oficial</span>
+                <span className="text-[10px] text-vtt-golden font-mono">1000px</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  commitCanvas({
+                    width: DEFAULT_CANVAS_WIDTH,
+                    height: 1200,
+                    elements: [],
+                    snapToGrid: true,
+                    gridSize: DEFAULT_GRID_SIZE
+                  })
+                  setShowPresetsMenu(false)
+                  setSelectedId(null)
+                }}
+                className="text-left px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-950/30 rounded-lg flex items-center justify-between"
+              >
+                <span>Tela em Branco (Limpar)</span>
+                <span className="text-[10px] text-red-400 font-mono">Vazio</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Toggle Live Preview vs Design Mode */}
+        <button
+          type="button"
+          onClick={() => {
+            setIsPreviewMode(!isPreviewMode)
+            setSelectedId(null)
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            isPreviewMode
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+              : 'text-neutral-300 hover:text-white hover:bg-neutral-800'
+          }`}
+          title="Alternar entre modo de Edição e Pré-Visualização Interativa"
+        >
+          {isPreviewMode ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          <span>{isPreviewMode ? 'Testar Ficha' : 'Design'}</span>
+        </button>
+      </div>
+
+      {/* ─────────────────────────────────────────────────────────────
+          2. WORKSPACE: LAYERS (LEFT) | CANVAS (CENTER) | INSPECTOR (RIGHT)
+      ───────────────────────────────────────────────────────────── */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* ── PAINEL DA ESQUERDA: CAMADAS / LAYERS (FIGMA STYLE) ── */}
+        {showLayersPanel && (
+          <aside className="w-64 border-r border-neutral-800/80 bg-neutral-900/60 backdrop-blur-md flex flex-col z-20 shrink-0">
+            <div className="p-3 border-b border-neutral-800/80 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-vtt-golden" />
+                <span className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
+                  Camadas
+                </span>
+              </div>
+              <span className="text-[11px] font-mono text-neutral-500">
+                {canvas.elements.length} itens
               </span>
             </div>
-          </div>
-          <span className="text-[11px] text-neutral-400 font-sans italic hidden sm:inline">
-            {builderMode === 'edit'
-              ? '💡 Arraste o grip para mover ou puxe a borda direita para redimensionar livremente'
-              : '🎮 Modo simulação ativado: interaja livremente com os campos'}
-          </span>
-        </div>
 
-        {/* Ornamento do topo para Vampiro: A Máscara (Imagem 1) */}
-        {isVampireTheme && (
-          <div className="w-full">
-            <VampireTopOrnament />
-          </div>
-        )}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {/* Frames e seus filhos */}
+              {frames.map((frame) => {
+                const children = canvas.elements.filter((e) => e.parentId === frame.id)
+                const isSelected = selectedId === frame.id
 
-        {/* ── CONTAINER FLEXÍVEL DE SEÇÕES (Permite seções lado a lado livremente) ── */}
-        <div className="sections-wrapper flex flex-wrap gap-4 w-full items-start">
-          {sections.map((section, secIdx) => {
-            const isDragOverSec = dragOverSectionIndex === secIdx || dropSectionIndex === secIdx
-            const isSecDragging = draggedSectionIndex === secIdx
-            const secPercent = parseWidthPercent(section.width, section.customWidth)
-            const sectionStyle = getSectionStyle(section.width, section.customWidth, section.customHeight)
-
-            return (
-              <div
-                key={section.id}
-                style={sectionStyle}
-                onDragOver={(e) => {
-                  if (draggedField || draggedSectionIndex !== null) {
-                    e.preventDefault()
-                    e.dataTransfer.dropEffect = 'move'
-                    if (draggedSectionIndex !== null && dropSectionIndex !== secIdx) {
-                      setDropSectionIndex(secIdx)
-                    } else if (draggedField && dragOverSectionIndex !== secIdx) {
-                      setDragOverSectionIndex(secIdx)
-                    }
-                  }
-                }}
-                onDragLeave={() => {
-                  if (dragOverSectionIndex === secIdx) setDragOverSectionIndex(null)
-                  if (dropSectionIndex === secIdx) setDropSectionIndex(null)
-                }}
-                onDrop={(e) => handleSectionDrop(e, secIdx)}
-                className={`transition-all duration-150 relative section-card-container flex flex-col justify-between ${
-                  isSecDragging
-                    ? 'opacity-40 border-dashed border-vtt-golden'
-                    : isDragOverSec
-                      ? 'ring-2 ring-vtt-golden/80 shadow-2xl'
-                      : ''
-                } ${activeTheme.styles.sectionCard}`}
-              >
-                {/* ── ALÇAS DE REDIMENSIONAMENTO MULTIDIRECIONAL DA SEÇÃO (LARGURA, ALTURA E CANTO) ── */}
-                {builderMode === 'edit' && (
-                  <>
-                    {/* Alça Direita: Largura */}
+                return (
+                  <div key={frame.id} className="space-y-0.5">
+                    {/* Frame Item */}
                     <div
-                      onMouseDown={(e) => handleStartResize(e, 'section', 'horizontal', secIdx)}
-                      className="absolute top-0 right-0 bottom-4 w-3 cursor-col-resize hover:bg-vtt-golden/35 transition-colors z-30 flex items-center justify-center group/sec-resize-x select-none"
-                      title="Arraste horizontalmente para redimensionar a largura desta seção"
+                      onClick={() => setSelectedId(frame.id)}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors group ${
+                        isSelected
+                          ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                          : 'text-neutral-300 hover:bg-neutral-800/60'
+                      }`}
                     >
-                      <div className="w-1 h-12 rounded-full bg-neutral-500/40 group-hover/sec-resize-x:bg-vtt-golden group-hover/sec-resize-x:h-16 transition-all shadow" />
+                      <div className="flex items-center gap-2 truncate">
+                        <span className="text-vtt-golden font-bold text-[11px]">#</span>
+                        <span className="truncate font-medium">{frame.title || frame.name}</span>
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            updateElement(frame.id, { locked: !frame.locked })
+                          }}
+                          className={`p-1 rounded hover:text-white ${frame.locked ? 'text-amber-400 opacity-100' : 'text-neutral-500'}`}
+                          title={frame.locked ? 'Destravar' : 'Travar'}
+                        >
+                          🔒
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteElement(frame.id)
+                          }}
+                          className="p-1 rounded text-neutral-500 hover:text-red-400"
+                          title="Excluir Frame"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
 
-                    {/* Alça Inferior: Altura */}
-                    <div
-                      onMouseDown={(e) => handleStartResize(e, 'section', 'vertical', secIdx)}
-                      onDoubleClick={() => handleResetHeight('section', secIdx)}
-                      className="absolute bottom-0 left-0 right-4 h-3 cursor-row-resize hover:bg-vtt-golden/35 transition-colors z-30 flex items-center justify-center group/sec-resize-y select-none"
-                      title="Arraste verticalmente para redimensionar a altura desta seção (duplo clique para restaurar automático)"
-                    >
-                      <div className="h-1 w-14 rounded-full bg-neutral-500/40 group-hover/sec-resize-y:bg-vtt-golden group-hover/sec-resize-y:w-20 transition-all shadow" />
-                    </div>
-
-                    {/* Alça Canto: Largura + Altura Simultâneas */}
-                    <div
-                      onMouseDown={(e) => handleStartResize(e, 'section', 'both', secIdx)}
-                      onDoubleClick={() => handleResetHeight('section', secIdx)}
-                      className="absolute bottom-0 right-0 w-4.5 h-4.5 cursor-se-resize hover:bg-vtt-golden/45 transition-colors z-30 flex items-end justify-end p-0.5 group/sec-resize-xy select-none rounded-br"
-                      title="Arraste para redimensionar largura e altura desta seção simultaneamente (duplo clique para restaurar altura)"
-                    >
-                      <svg className="w-3 h-3 text-neutral-400 group-hover/sec-resize-xy:text-vtt-golden transition-colors" viewBox="0 0 10 10" fill="currentColor">
-                        <circle cx="8" cy="8" r="1.3" />
-                        <circle cx="4" cy="8" r="1.3" />
-                        <circle cx="8" cy="4" r="1.3" />
-                      </svg>
-                    </div>
-                  </>
-                )}
-
-                {/* Canto entalhado com rebite de D&D 2024 (Imagem 2) */}
-                {isDndTheme && <DndScallopedCorner />}
-                {isDndTheme && (
-                  <div className="absolute inset-1.5 pointer-events-none border border-stone-300/80 rounded" />
-                )}
-
-                {/* ── CABEÇALHO DA SEÇÃO COM ESTILO TEMÁTICO & CONTROLES DE LARGURA ── */}
-                {isVampireTheme ? (
-                  <div className="w-full my-2">
-                    <div className="flex items-center gap-2 sm:gap-3 w-full">
-                      {/* Lança esquerda */}
-                      <div className="flex-1 flex items-center">
-                        <span className="w-2.5 h-2.5 rotate-45 bg-black shrink-0 shadow-sm" />
-                        <div className="h-[2px] bg-black w-full" />
-                      </div>
-
-                      {/* Título Central com Controles de Edição */}
-                      <div className="flex items-center gap-1.5 shrink-0 px-2">
-                        {builderMode === 'edit' && (
-                          <div
-                            draggable
-                            onDragStart={(e) => {
-                              e.stopPropagation()
-                              setDraggedSectionIndex(secIdx)
-                              e.dataTransfer.effectAllowed = 'move'
-                            }}
-                            onDragEnd={handleDragEnd}
-                            className="cursor-grab active:cursor-grabbing p-1 rounded text-neutral-500 hover:text-black transition-colors"
-                            title="Mover seção inteira"
-                          >
-                            <GripVertical className="w-4 h-4" />
-                          </div>
-                        )}
-
-                        {builderMode === 'edit' ? (
-                          <input
-                            type="text"
-                            value={section.title}
-                            onChange={(e) =>
-                              handleUpdateSection(secIdx, { ...section, title: e.target.value })
-                            }
-                            placeholder="Nome da Seção..."
-                            className="font-serif font-black text-xs sm:text-sm uppercase tracking-[0.25em] text-black outline-none border-b border-transparent hover:border-black/30 focus:border-black px-1 text-center"
-                          />
-                        ) : (
-                          <h3 className="font-serif font-black text-xs sm:text-sm uppercase tracking-[0.25em] text-black text-center">
-                            {section.title}
-                          </h3>
-                        )}
-                      </div>
-
-                      {/* Lança direita */}
-                      <div className="flex-1 flex items-center">
-                        <div className="h-[2px] bg-black w-full" />
-                        <span className="w-2.5 h-2.5 rotate-45 bg-black shrink-0 shadow-sm" />
-                      </div>
-
-                      {/* Botões do Modo Editor */}
-                      {builderMode === 'edit' && (
-                        <div className="flex items-center gap-1 shrink-0 ml-1">
-                          {/* Indicador de dimensões da seção */}
-                          <div className="flex items-center gap-1 bg-black/10 rounded px-1.5 py-0.5 text-[9px] font-mono">
-                            <span className="text-black font-bold select-none" title="Dimensões da seção (redimensione pelas bordas ou cantos)">
-                              {secPercent}%{section.customHeight ? ` × ${section.customHeight}px` : ''}
-                            </span>
-                            {section.customHeight && (
+                    {/* Children of Frame */}
+                    {children.length > 0 && (
+                      <div className="pl-4 border-l border-neutral-800 ml-3 space-y-0.5">
+                        {children.map((child) => {
+                          const isChildSelected = selectedId === child.id
+                          return (
+                            <div
+                              key={child.id}
+                              onClick={() => setSelectedId(child.id)}
+                              className={`flex items-center justify-between px-2 py-1 rounded text-[11px] cursor-pointer transition-colors group ${
+                                isChildSelected
+                                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                                  : 'text-neutral-400 hover:bg-neutral-800/40 hover:text-neutral-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 truncate">
+                                <span className="text-neutral-500 font-mono text-[9px]">
+                                  {child.type === 'text_field'
+                                    ? 'T'
+                                    : child.type === 'stat'
+                                      ? 'S'
+                                      : child.type === 'label'
+                                        ? 'L'
+                                        : '•'}
+                                </span>
+                                <span className="truncate">{child.label || child.name}</span>
+                              </div>
                               <button
                                 type="button"
-                                onClick={() => handleResetHeight('section', secIdx)}
-                                className="text-neutral-500 hover:text-black p-0.5 cursor-pointer"
-                                title="Restaurar altura automática"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  deleteElement(child.id)
+                                }}
+                                className="opacity-0 group-hover:opacity-100 p-0.5 text-neutral-500 hover:text-red-400"
                               >
-                                <RotateCcw className="w-2.5 h-2.5" />
+                                <Trash2 className="w-2.5 h-2.5" />
                               </button>
-                            )}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => handleAddField(secIdx)}
-                            className="flex items-center gap-1 px-2 py-0.5 bg-black text-white text-[11px] font-serif font-black uppercase hover:bg-neutral-800 transition-colors cursor-pointer"
-                            title="Adicionar campo"
-                          >
-                            <Plus className="w-3 h-3" />
-                            <span>Campo</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSection(secIdx)}
-                            className="p-1 text-neutral-500 hover:text-red-600 transition-colors cursor-pointer"
-                            title="Remover seção"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className={activeTheme.styles.sectionHeader}>
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      {/* Handle para arrastar a seção inteira no modo editor */}
-                      {builderMode === 'edit' && (
-                        <div
-                          draggable
-                          onDragStart={(e) => {
-                            e.stopPropagation()
-                            setDraggedSectionIndex(secIdx)
-                            e.dataTransfer.effectAllowed = 'move'
-                          }}
-                          onDragEnd={handleDragEnd}
-                          className="cursor-grab active:cursor-grabbing p-1 rounded text-neutral-400 hover:text-white transition-colors select-none"
-                          title="Arraste para mover esta seção inteira para cima ou para baixo"
-                        >
-                          <GripVertical className="w-4 h-4" />
-                        </div>
-                      )}
-
-                      <span className={activeTheme.styles.sectionBullet} />
-
-                      {/* Nome da Seção Editável em Tempo Real */}
-                      {builderMode === 'edit' ? (
-                        <input
-                          type="text"
-                          value={section.title}
-                          onChange={(e) =>
-                            handleUpdateSection(secIdx, { ...section, title: e.target.value })
-                          }
-                          placeholder="Nome da Seção..."
-                          className="bg-transparent text-inherit font-inherit text-sm sm:text-base font-bold outline-none border-b border-transparent hover:border-white/30 focus:border-white transition-colors px-1 flex-1 max-w-sm"
-                        />
-                      ) : (
-                        <h3 className={activeTheme.styles.sectionTitle}>{section.title}</h3>
-                      )}
-
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-black/40 text-neutral-300">
-                        {section.fields.length} campos
-                      </span>
-                    </div>
-
-                    {/* Controles da Seção no Modo Edição */}
-                    {builderMode === 'edit' ? (
-                      <div className="flex items-center gap-1">
-                        {/* Indicador de Dimensões da Seção */}
-                        <div className="flex items-center gap-1 bg-black/40 rounded-lg px-2 py-0.5 border border-white/10 text-[9px] font-mono">
-                          <span className="text-vtt-golden font-bold select-none" title="Dimensões da seção (redimensione pelas bordas ou cantos)">
-                            {secPercent}%{section.customHeight ? ` × ${section.customHeight}px` : ''}
-                          </span>
-                          {section.customHeight && (
-                            <button
-                              type="button"
-                              onClick={() => handleResetHeight('section', secIdx)}
-                              className="text-neutral-400 hover:text-vtt-golden p-0.5 cursor-pointer transition-colors"
-                              title="Restaurar altura automática"
-                            >
-                              <RotateCcw className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
-
-                        <button
-                          type="button"
-                          disabled={secIdx === 0}
-                          onClick={() => handleMoveSection(secIdx, 'up')}
-                          className="p-1 rounded text-neutral-400 hover:text-white disabled:opacity-30 cursor-pointer"
-                          title="Mover seção para cima"
-                        >
-                          <ChevronUp className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={secIdx === sections.length - 1}
-                          onClick={() => handleMoveSection(secIdx, 'down')}
-                          className="p-1 rounded text-neutral-400 hover:text-white disabled:opacity-30 cursor-pointer"
-                          title="Mover seção para baixo"
-                        >
-                          <ChevronDown className="w-4 h-4" />
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleAddField(secIdx)}
-                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-black/40 hover:bg-black/60 text-white text-xs font-semibold border border-white/20 ml-1 cursor-pointer transition-colors"
-                          title="Adicionar campo a esta seção"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                          <span>Campo</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveSection(secIdx)}
-                          className="p-1.5 rounded text-neutral-400 hover:text-red-400 hover:bg-red-950/40 transition-colors ml-1 cursor-pointer"
-                          title="Excluir seção"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                            </div>
+                          )
+                        })}
                       </div>
-                    ) : (
-                      activeTheme.styles.techTag && (
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded opacity-80 ${activeTheme.styles.badge}`}>
-                          {activeTheme.styles.techTag}
-                        </span>
-                      )
                     )}
                   </div>
-                )}
+                )
+              })}
 
-                {/* Descrição Opcional da Seção */}
-                {builderMode === 'edit' ? (
-                  <input
-                    type="text"
-                    value={section.description || ''}
-                    onChange={(e) =>
-                      handleUpdateSection(secIdx, { ...section, description: e.target.value })
-                    }
-                    placeholder="Subtítulo ou instruções da seção (opcional)..."
-                    className="w-full bg-transparent text-xs text-neutral-400 outline-none border-b border-transparent hover:border-white/20 focus:border-white/40 px-1 py-0.5 mb-2 italic"
-                  />
-                ) : (
-                  section.description && !isVampireTheme && (
-                    <p className={activeTheme.styles.sectionDesc}>{section.description}</p>
-                  )
-                )}
+              {/* Elementos Soltos (Sem Frame pai) */}
+              {looseElements.length > 0 && (
+                <div className="pt-2 border-t border-neutral-800/80">
+                  <span className="text-[10px] font-bold text-neutral-500 uppercase px-2 mb-1 block">
+                    Elementos Livres
+                  </span>
+                  {looseElements.map((elem) => {
+                    const isSelected = selectedId === elem.id
+                    return (
+                      <div
+                        key={elem.id}
+                        onClick={() => setSelectedId(elem.id)}
+                        className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors group ${
+                          isSelected
+                            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                            : 'text-neutral-400 hover:bg-neutral-800/60 hover:text-neutral-200'
+                        }`}
+                      >
+                        <span className="truncate">{elem.label || elem.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteElement(elem.id)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-neutral-500 hover:text-red-400"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </aside>
+        )}
 
-                {/* ── GRADE FLEXÍVEL DE CAMPOS (Com Redimensionamento Livre) ── */}
-                {section.fields.length === 0 ? (
-                  <div
-                    onDragOver={(e) => {
-                      if (draggedField) {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setDragOverSectionIndex(secIdx)
+        {/* ── CENTRO: ÁREA DE DESENHO LIVRE (ARTBOARD CANVAS) ── */}
+        <div
+          ref={canvasRef}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          className={`flex-1 overflow-auto bg-neutral-950 p-12 flex justify-center items-start relative ${
+            activeTool !== 'select' ? 'cursor-crosshair' : 'cursor-default'
+          }`}
+          style={{
+            backgroundImage: `radial-gradient(#26262e 1.5px, transparent 1.5px)`,
+            backgroundSize: `${24 * zoom}px ${24 * zoom}px`
+          }}
+          data-canvas-bg="true"
+        >
+          {/* ARTBOARD DA FICHA */}
+          <div
+            className="relative bg-neutral-900/90 rounded-2xl border border-neutral-800 shadow-[0_20px_50px_rgba(0,0,0,0.8)] transition-transform origin-top"
+            style={{
+              width: canvas.width,
+              height: canvas.height,
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top center'
+            }}
+          >
+            {/* Rótulo superior do Artboard Figma */}
+            <div className="absolute -top-7 left-0 flex items-center gap-2 text-xs text-neutral-500 font-mono">
+              <span className="font-semibold text-neutral-400">Ficha Livre Canvas</span>
+              <span>•</span>
+              <span>
+                {canvas.width} × {canvas.height} px
+              </span>
+            </div>
+
+            {/* 1. RENDERIZAÇÃO DOS FRAMES (CONTAINERS) */}
+            {frames.map((frame) => {
+              const isSelected = selectedId === frame.id && !isPreviewMode
+              const children = canvas.elements.filter((e) => e.parentId === frame.id)
+
+              return (
+                <div
+                  key={frame.id}
+                  onClick={(e) => {
+                    if (isPreviewMode) return
+                    e.stopPropagation()
+                    setSelectedId(frame.id)
+                  }}
+                  onMouseDown={(e) => {
+                    if (isPreviewMode || frame.locked) return
+                    e.stopPropagation()
+                    setSelectedId(frame.id)
+                    const rect = canvasRef.current?.getBoundingClientRect()
+                    if (!rect) return
+                    const currentX = (e.clientX - rect.left) / zoom
+                    const currentY = (e.clientY - rect.top) / zoom
+                    setDraggingItem({
+                      id: frame.id,
+                      startX: currentX,
+                      startY: currentY,
+                      elemOrigX: frame.x,
+                      elemOrigY: frame.y
+                    })
+                  }}
+                  className={`absolute transition-shadow ${
+                    isSelected
+                      ? 'ring-2 ring-sky-400 shadow-[0_0_24px_rgba(56,189,248,0.25)] z-20'
+                      : 'hover:border-neutral-600/80'
+                  }`}
+                  style={{
+                    left: frame.x,
+                    top: frame.y,
+                    width: frame.width,
+                    height: frame.height,
+                    backgroundColor: frame.backgroundColor || 'rgba(23, 23, 28, 0.85)',
+                    borderColor: frame.borderColor || '#374151',
+                    borderWidth: frame.borderWidth ?? 1,
+                    borderRadius: frame.borderRadius ?? 12,
+                    borderStyle: 'solid'
+                  }}
+                >
+                  {/* Cabeçalho do Frame */}
+                  {frame.showHeader !== false && (
+                    <div className="px-4 py-2.5 border-b border-neutral-800/80 flex items-center justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-vtt-golden uppercase tracking-wider font-cinzel">
+                          {frame.title || frame.name}
+                        </h4>
+                        {frame.subtitle && (
+                          <p className="text-[10px] text-neutral-400 leading-tight">
+                            {frame.subtitle}
+                          </p>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-neutral-600 font-mono">
+                        {children.length} itens
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Filhos renderizados dentro do Frame (coordenadas relativas ao frame) */}
+                  {children.map((child) => (
+                    <CanvasElementView
+                      key={child.id}
+                      element={child}
+                      isSelected={selectedId === child.id && !isPreviewMode}
+                      isPreviewMode={isPreviewMode}
+                      previewValues={previewValues}
+                      onChangePreview={(key, val) =>
+                        setPreviewValues((prev) => ({ ...prev, [key]: val }))
                       }
-                    }}
-                    onDrop={(e) => handleSectionDrop(e, secIdx)}
-                    className="text-center py-8 border-2 border-dashed border-white/20 rounded-2xl flex flex-col items-center gap-2 text-xs text-neutral-400 my-2 w-full"
-                  >
-                    <LayoutGrid className="w-6 h-6 text-neutral-500" />
-                    <p>Esta seção está vazia.</p>
-                    <p className="text-[11px] text-neutral-500">
-                      Arraste campos de outra seção para cá ou adicione um novo campo abaixo.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => handleAddField(secIdx)}
-                      className="text-xs text-vtt-golden hover:underline font-bold cursor-pointer mt-1"
-                    >
-                      + Adicionar primeiro campo
-                    </button>
-                  </div>
-                ) : (
-                  <div className="fields-wrapper flex flex-wrap gap-3 mt-2 items-start w-full">
-                    {section.fields.map((field, fieldIdx) => {
-                      const fieldPercent = parseWidthPercent(field.width, field.customWidth)
-                      const fieldStyle = getFieldStyle(field.width, field.customWidth, field.customHeight)
-                      const isSettingsOpen = expandedFieldSettingsId === field.id
-                      const isThisDragging =
-                        draggedField?.sectionIndex === secIdx &&
-                        draggedField?.fieldIndex === fieldIdx
-                      const isDropTargetBefore =
-                        dropFieldTarget?.sectionIndex === secIdx &&
-                        dropFieldTarget?.fieldIndex === fieldIdx &&
-                        dropFieldTarget?.position === 'before'
-                      const isDropTargetAfter =
-                        dropFieldTarget?.sectionIndex === secIdx &&
-                        dropFieldTarget?.fieldIndex === fieldIdx &&
-                        dropFieldTarget?.position === 'after'
+                      onSelect={(e) => {
+                        if (isPreviewMode) return
+                        e.stopPropagation()
+                        setSelectedId(child.id)
+                      }}
+                      onMouseDownDrag={(e) => {
+                        if (isPreviewMode || child.locked) return
+                        e.stopPropagation()
+                        setSelectedId(child.id)
+                        const rect = canvasRef.current?.getBoundingClientRect()
+                        if (!rect) return
+                        const currentX = (e.clientX - rect.left) / zoom
+                        const currentY = (e.clientY - rect.top) / zoom
+                        setDraggingItem({
+                          id: child.id,
+                          startX: currentX,
+                          startY: currentY,
+                          elemOrigX: child.x,
+                          elemOrigY: child.y
+                        })
+                      }}
+                      onStartResize={(dir, e) => {
+                        e.stopPropagation()
+                        const rect = canvasRef.current?.getBoundingClientRect()
+                        if (!rect) return
+                        setResizingItem({
+                          id: child.id,
+                          direction: dir,
+                          startX: (e.clientX - rect.left) / zoom,
+                          startY: (e.clientY - rect.top) / zoom,
+                          origX: child.x,
+                          origY: child.y,
+                          origW: child.width,
+                          origH: child.height
+                        })
+                      }}
+                    />
+                  ))}
 
-                      const rawVal = previewValues[field.key]
-                      const val =
-                        rawVal !== undefined
-                          ? rawVal
-                          : field.defaultValue !== undefined
-                            ? field.defaultValue
-                            : ''
-
-                      // Características com trilha de pontos de Vampiro: A Máscara
-                      const isVtmDotField =
-                        isVampireTheme &&
-                        (field.type === 'number' ||
-                          Boolean(field.isModifier) ||
-                          (typeof field.defaultValue === 'number' && field.defaultValue <= 8))
-
-                      // Atributos de D&D com Modificador e Caixa Oficial
-                      const isDndScoreBox = isDndTheme && field.type === 'number' && Boolean(field.isModifier)
-
-                      return (
-                        <React.Fragment key={field.id}>
-                          {/* Linha Indicadora de Drop (Antes) */}
-                          {isDropTargetBefore && (
-                            <div className="w-full h-1 bg-vtt-golden rounded-full shadow-[0_0_10px_rgba(233,209,128,0.9)] animate-pulse my-0.5" />
-                          )}
-
+                  {/* Gizmo de Seleção e Redimensionamento do Frame */}
+                  {isSelected && (
+                    <>
+                      <div className="absolute -top-6 left-0 px-2 py-0.5 rounded bg-sky-500 text-white font-mono text-[10px] flex items-center gap-1 shadow">
+                        <span>Frame: {frame.title || frame.name}</span>
+                        <span>•</span>
+                        <span>
+                          {frame.width} × {frame.height}
+                        </span>
+                      </div>
+                      {/* 8 Alças de Redimensionamento do Frame */}
+                      {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as ResizeDirection[]).map(
+                        (dir) => (
                           <div
-                            style={fieldStyle}
-                            onDragOver={(e) => handleFieldDragOver(e, secIdx, fieldIdx)}
-                            onDrop={(e) => handleFieldDrop(e, secIdx, fieldIdx)}
-                            className={`flex flex-col gap-1 transition-all duration-150 relative field-card-container ${
-                              isThisDragging
-                                ? 'opacity-35 border-dashed border-vtt-golden scale-[0.98]'
-                                : ''
-                            } ${activeTheme.styles.fieldCard}`}
-                          >
-                            {/* ── ALÇAS DE REDIMENSIONAMENTO MULTIDIRECIONAL DO CAMPO (LARGURA, ALTURA E CANTO) ── */}
-                            {builderMode === 'edit' && (
-                              <>
-                                {/* Alça Direita: Largura */}
-                                <div
-                                  onMouseDown={(e) => handleStartResize(e, 'field', 'horizontal', secIdx, fieldIdx)}
-                                  className="absolute top-0 right-0 bottom-3 w-2.5 cursor-col-resize hover:bg-vtt-golden/40 transition-colors z-30 flex items-center justify-center group/field-resize-x select-none"
-                                  title="Arraste horizontalmente para redimensionar a largura deste campo"
-                                >
-                                  <div className="w-1 h-7 rounded-full bg-neutral-500/30 group-hover/field-resize-x:bg-vtt-golden group-hover/field-resize-x:h-10 transition-all shadow-sm" />
-                                </div>
+                            key={dir}
+                            onMouseDown={(e) => {
+                              e.stopPropagation()
+                              const rect = canvasRef.current?.getBoundingClientRect()
+                              if (!rect) return
+                              setResizingItem({
+                                id: frame.id,
+                                direction: dir,
+                                startX: (e.clientX - rect.left) / zoom,
+                                startY: (e.clientY - rect.top) / zoom,
+                                origX: frame.x,
+                                origY: frame.y,
+                                origW: frame.width,
+                                origH: frame.height
+                              })
+                            }}
+                            className={`absolute w-2.5 h-2.5 bg-white border border-sky-500 rounded-sm z-30 ${getHandlePositionClass(
+                              dir
+                            )} ${getHandleCursorClass(dir)}`}
+                          />
+                        )
+                      )}
+                    </>
+                  )}
+                </div>
+              )
+            })}
 
-                                {/* Alça Inferior: Altura */}
-                                <div
-                                  onMouseDown={(e) => handleStartResize(e, 'field', 'vertical', secIdx, fieldIdx)}
-                                  onDoubleClick={() => handleResetHeight('field', secIdx, fieldIdx)}
-                                  className="absolute bottom-0 left-0 right-3 h-2.5 cursor-row-resize hover:bg-vtt-golden/40 transition-colors z-30 flex items-center justify-center group/field-resize-y select-none"
-                                  title="Arraste verticalmente para redimensionar a altura deste campo (duplo clique para restaurar automático)"
-                                >
-                                  <div className="h-1 w-8 rounded-full bg-neutral-500/30 group-hover/field-resize-y:bg-vtt-golden group-hover/field-resize-y:w-12 transition-all shadow-sm" />
-                                </div>
+            {/* 2. RENDERIZAÇÃO DOS ELEMENTOS LIVRES (FORA DE FRAMES) */}
+            {looseElements.map((elem) => (
+              <CanvasElementView
+                key={elem.id}
+                element={elem}
+                isSelected={selectedId === elem.id && !isPreviewMode}
+                isPreviewMode={isPreviewMode}
+                previewValues={previewValues}
+                onChangePreview={(key, val) =>
+                  setPreviewValues((prev) => ({ ...prev, [key]: val }))
+                }
+                onSelect={(e) => {
+                  if (isPreviewMode) return
+                  e.stopPropagation()
+                  setSelectedId(elem.id)
+                }}
+                onMouseDownDrag={(e) => {
+                  if (isPreviewMode || elem.locked) return
+                  e.stopPropagation()
+                  setSelectedId(elem.id)
+                  const rect = canvasRef.current?.getBoundingClientRect()
+                  if (!rect) return
+                  const currentX = (e.clientX - rect.left) / zoom
+                  const currentY = (e.clientY - rect.top) / zoom
+                  setDraggingItem({
+                    id: elem.id,
+                    startX: currentX,
+                    startY: currentY,
+                    elemOrigX: elem.x,
+                    elemOrigY: elem.y
+                  })
+                }}
+                onStartResize={(dir, e) => {
+                  e.stopPropagation()
+                  const rect = canvasRef.current?.getBoundingClientRect()
+                  if (!rect) return
+                  setResizingItem({
+                    id: elem.id,
+                    direction: dir,
+                    startX: (e.clientX - rect.left) / zoom,
+                    startY: (e.clientY - rect.top) / zoom,
+                    origX: elem.x,
+                    origY: elem.y,
+                    origW: elem.width,
+                    origH: elem.height
+                  })
+                }}
+              />
+            ))}
 
-                                {/* Alça Canto: Largura + Altura Simultâneas */}
-                                <div
-                                  onMouseDown={(e) => handleStartResize(e, 'field', 'both', secIdx, fieldIdx)}
-                                  onDoubleClick={() => handleResetHeight('field', secIdx, fieldIdx)}
-                                  className="absolute bottom-0 right-0 w-3.5 h-3.5 cursor-se-resize hover:bg-vtt-golden/50 transition-colors z-30 flex items-end justify-end p-0.5 group/field-resize-xy select-none rounded-br"
-                                  title="Arraste para redimensionar largura e altura livremente (duplo clique para restaurar altura)"
-                                >
-                                  <svg className="w-2.5 h-2.5 text-neutral-400 group-hover/field-resize-xy:text-vtt-golden transition-colors" viewBox="0 0 10 10" fill="currentColor">
-                                    <circle cx="8" cy="8" r="1.2" />
-                                    <circle cx="4" cy="8" r="1.2" />
-                                    <circle cx="8" cy="4" r="1.2" />
-                                  </svg>
-                                </div>
-                              </>
-                            )}
-
-                            {/* ── BARRA DE CONTROLES DO CAMPO NO MODO EDITOR ── */}
-                            {builderMode === 'edit' && (
-                              <div className="flex items-center justify-between gap-1 pb-1 border-b border-black/10 dark:border-white/10 mb-0.5">
-                                <div className="flex items-center gap-1 flex-1 min-w-0">
-                                  {/* Grip de arraste do campo */}
-                                  <div
-                                    draggable
-                                    onDragStart={(e) =>
-                                      handleFieldDragStart(e, secIdx, fieldIdx, field)
-                                    }
-                                    onDragEnd={handleDragEnd}
-                                    className="cursor-grab active:cursor-grabbing p-1 -ml-1 text-neutral-400 hover:text-vtt-golden rounded hover:bg-black/10 transition-colors select-none"
-                                    title="Arraste para reposicionar este campo na grade"
-                                  >
-                                    <GripVertical className="w-3.5 h-3.5" />
-                                  </div>
-
-                                  {/* Indicador de Dimensões do Campo */}
-                                  <div className="flex items-center gap-1 bg-black/20 dark:bg-black/40 rounded px-1.5 py-0.5 border border-white/10 text-[9px] font-mono select-none">
-                                    <span className="text-vtt-golden font-bold" title="Dimensões do campo (redimensione pelas bordas ou cantos)">
-                                      {fieldPercent}%{field.customHeight ? ` × ${field.customHeight}px` : ''}
-                                    </span>
-                                    {field.customHeight && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleResetHeight('field', secIdx, fieldIdx)}
-                                        className="text-neutral-400 hover:text-vtt-golden p-0.5 cursor-pointer transition-colors"
-                                        title="Restaurar altura automática"
-                                      >
-                                        <RotateCcw className="w-2.5 h-2.5" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1">
-                                  {/* Tipo do Campo Dropdown Rápido */}
-                                  <select
-                                    value={field.type}
-                                    onChange={(e) => {
-                                      const newType = e.target.value as SheetCustomField['type']
-                                      handleUpdateField(secIdx, fieldIdx, {
-                                        ...field,
-                                        type: newType,
-                                        referenceType:
-                                          newType === 'reference' ? field.referenceType || 'class' : undefined
-                                      })
-                                    }}
-                                    className="bg-black/20 dark:bg-black/40 text-[10px] text-neutral-700 dark:text-neutral-300 rounded px-1.5 py-0.5 border border-black/10 dark:border-white/10 outline-none cursor-pointer"
-                                    title="Tipo de campo"
-                                  >
-                                    <option value="text">Texto</option>
-                                    <option value="number">Número</option>
-                                    <option value="reference">Referência</option>
-                                    <option value="select">Select</option>
-                                    <option value="textarea">Área Texto</option>
-                                    <option value="checkbox">Checkbox</option>
-                                  </select>
-
-                                  {/* Engrenagem de Configurações Avançadas */}
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      setExpandedFieldSettingsId(
-                                        isSettingsOpen ? null : field.id
-                                      )
-                                    }
-                                    className={`p-1 rounded cursor-pointer transition-colors ${
-                                      isSettingsOpen
-                                        ? 'bg-vtt-golden text-neutral-950 font-bold'
-                                        : 'text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-black/10'
-                                    }`}
-                                    title="Configurações avançadas do campo"
-                                  >
-                                    <Settings2 className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {/* Duplicar Campo */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleDuplicateField(secIdx, fieldIdx)}
-                                    className="p-1 rounded text-neutral-400 hover:text-vtt-golden hover:bg-black/10 transition-colors cursor-pointer"
-                                    title="Duplicar campo"
-                                  >
-                                    <Copy className="w-3.5 h-3.5" />
-                                  </button>
-
-                                  {/* Excluir Campo */}
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRemoveField(secIdx, fieldIdx)}
-                                    className="p-1 rounded text-neutral-400 hover:text-red-500 hover:bg-black/10 transition-colors cursor-pointer"
-                                    title="Excluir campo"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* ── GAVETA DE CONFIGURAÇÕES AVANÇADAS DO CAMPO (QUANDO ABERTA) ── */}
-                            {builderMode === 'edit' && isSettingsOpen && (
-                              <div className="bg-black/85 text-white border border-white/20 rounded-lg p-2.5 my-1 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] animate-fadeIn z-20">
-                                {/* Slider de Largura Livre */}
-                                <div className="bg-neutral-900/90 p-2 rounded-lg border border-white/10">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-[10px] uppercase font-bold text-neutral-300">
-                                      Largura Livre
-                                    </span>
-                                    <span className="text-xs font-mono font-bold text-vtt-golden">
-                                      {fieldPercent}%
-                                    </span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min="10"
-                                    max="100"
-                                    step="1"
-                                    value={fieldPercent}
-                                    onChange={(e) =>
-                                      handleUpdateField(secIdx, fieldIdx, {
-                                        ...field,
-                                        customWidth: Number(e.target.value),
-                                        width: `${e.target.value}%`
-                                      })
-                                    }
-                                    className="w-full accent-vtt-golden cursor-pointer"
-                                  />
-                                </div>
-
-                                {/* Controle de Altura Livre */}
-                                <div className="bg-neutral-900/90 p-2 rounded-lg border border-white/10 flex flex-col justify-between">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <span className="text-[10px] uppercase font-bold text-neutral-300">
-                                      Altura em Pixels
-                                    </span>
-                                    {field.customHeight && (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleResetHeight('field', secIdx, fieldIdx)}
-                                        className="text-[10px] text-vtt-golden hover:underline font-bold cursor-pointer"
-                                      >
-                                        Auto
-                                      </button>
-                                    )}
-                                  </div>
-                                  <input
-                                    type="number"
-                                    min="30"
-                                    max="800"
-                                    placeholder="Automática"
-                                    value={field.customHeight || ''}
-                                    onChange={(e) => {
-                                      const hVal = e.target.value === '' ? undefined : Number(e.target.value)
-                                      handleUpdateField(secIdx, fieldIdx, {
-                                        ...field,
-                                        customHeight: hVal
-                                      })
-                                    }}
-                                    className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-white font-mono outline-none"
-                                  />
-                                </div>
-
-                                <div>
-                                  <span className="text-[9px] uppercase font-bold text-neutral-400 block mb-0.5">
-                                    Identificador (Key)
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={field.key}
-                                    onChange={(e) =>
-                                      handleUpdateField(secIdx, fieldIdx, {
-                                        ...field,
-                                        key: slugify(e.target.value)
-                                      })
-                                    }
-                                    className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-white font-mono text-xs outline-none"
-                                  />
-                                </div>
-
-                                <div>
-                                  <span className="text-[9px] uppercase font-bold text-neutral-400 block mb-0.5">
-                                    Dica / Placeholder
-                                  </span>
-                                  <input
-                                    type="text"
-                                    value={field.placeholder || ''}
-                                    onChange={(e) =>
-                                      handleUpdateField(secIdx, fieldIdx, {
-                                        ...field,
-                                        placeholder: e.target.value
-                                      })
-                                    }
-                                    placeholder="Ex: 9m, Neutro Bom..."
-                                    className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-white text-xs outline-none"
-                                  />
-                                </div>
-
-                                {field.type === 'reference' && (
-                                  <div className="sm:col-span-2">
-                                    <span className="text-[9px] uppercase font-bold text-vtt-golden block mb-0.5">
-                                      Conteúdo do Sistema Referenciado
-                                    </span>
-                                    <select
-                                      value={field.referenceType || 'class'}
-                                      onChange={(e) =>
-                                        handleUpdateField(secIdx, fieldIdx, {
-                                          ...field,
-                                          referenceType: e.target.value as ContentType
-                                        })
-                                      }
-                                      className="w-full bg-neutral-900 border border-vtt-golden/40 rounded px-2 py-1 text-vtt-golden font-bold text-xs outline-none cursor-pointer"
-                                    >
-                                      {CONTENT_TYPE_LIST.map((ct) => (
-                                        <option key={ct.value} value={ct.value}>
-                                          {ct.emoji} {ct.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                )}
-
-                                {field.type === 'select' && (
-                                  <div className="sm:col-span-2">
-                                    <span className="text-[9px] uppercase font-bold text-neutral-400 block mb-0.5">
-                                      Opções Fixas (separadas por vírgula)
-                                    </span>
-                                    <input
-                                      type="text"
-                                      value={(field.options || []).join(', ')}
-                                      onChange={(e) =>
-                                        handleUpdateField(secIdx, fieldIdx, {
-                                          ...field,
-                                          options: e.target.value
-                                            .split(',')
-                                            .map((s) => s.trim())
-                                            .filter(Boolean)
-                                        })
-                                      }
-                                      placeholder="Opção 1, Opção 2, Opção 3..."
-                                      className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-white text-xs outline-none"
-                                    />
-                                  </div>
-                                )}
-
-                                <div className="sm:col-span-2 flex items-center justify-between pt-1 border-t border-white/10">
-                                  <label className="flex items-center gap-2 cursor-pointer select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(field.isModifier)}
-                                      onChange={(e) =>
-                                        handleUpdateField(secIdx, fieldIdx, {
-                                          ...field,
-                                          isModifier: e.target.checked
-                                        })
-                                      }
-                                      className="accent-vtt-golden w-3.5 h-3.5 rounded"
-                                    />
-                                    <span className="text-neutral-300">
-                                      Permitir rolagem de teste com <strong>d20</strong>
-                                    </span>
-                                  </label>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => setExpandedFieldSettingsId(null)}
-                                    className="text-xs text-vtt-golden hover:underline font-bold"
-                                  >
-                                    Fechar
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* ── 1. RENDERIZAÇÃO VAMPIRO (VTM - Imagem 1) ── */}
-                            {isVtmDotField ? (
-                              <div className="flex items-center w-full">
-                                <VampireDotTrack
-                                  label={field.label}
-                                  value={typeof val === 'number' ? val : Number(val) || 0}
-                                  maxDots={8}
-                                  minDots={0}
-                                  canEdit={true}
-                                  isBuilderMode={true}
-                                  onChangeValue={(newVal) =>
-                                    setPreviewValues((prev) => ({ ...prev, [field.key]: newVal }))
-                                  }
-                                  onRoll={(lbl, pool) => triggerMockRoll(lbl, pool, `${pool}d10`)}
-                                />
-                              </div>
-                            ) : isVampireTheme && (field.type === 'text' || field.type === 'reference') ? (
-                              <div className="flex items-baseline gap-2 w-full py-0.5">
-                                {builderMode === 'edit' ? (
-                                  <input
-                                    type="text"
-                                    value={field.label}
-                                    onChange={(e) =>
-                                      handleUpdateField(secIdx, fieldIdx, {
-                                        ...field,
-                                        label: e.target.value
-                                      })
-                                    }
-                                    className="font-serif font-black text-xs text-black uppercase tracking-wider outline-none border-b border-transparent hover:border-black/30 focus:border-black max-w-[120px]"
-                                  />
-                                ) : (
-                                  <span className="font-serif font-black text-xs text-black uppercase tracking-wider shrink-0">
-                                    {field.label}:
-                                  </span>
-                                )}
-                                <input
-                                  type="text"
-                                  value={String(val)}
-                                  onChange={(e) =>
-                                    setPreviewValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                                  }
-                                  placeholder={field.placeholder || ''}
-                                  className="flex-1 bg-[#eef2ff]/75 border-b border-black text-black font-serif text-xs font-bold outline-none px-2 py-0.5 focus:bg-[#e0e7ff] transition-colors"
-                                />
-                              </div>
-                            ) : isDndScoreBox ? (
-                              /* ── 2. RENDERIZAÇÃO D&D ABILITY BOX (Imagem 2) ── */
-                              <DndAbilityBox
-                                label={field.label}
-                                score={typeof val === 'number' ? val : Number(val) || 10}
-                                canEdit={true}
-                                isBuilderMode={true}
-                                onChangeScore={(newScore) =>
-                                  setPreviewValues((prev) => ({ ...prev, [field.key]: newScore }))
-                                }
-                                onRoll={(lbl, mod) => {
-                                  const sign = mod >= 0 ? `+${mod}` : `${mod}`
-                                  triggerMockRoll(lbl, mod, `1d20${sign}`)
-                                }}
-                              />
-                            ) : isDndTheme ? (
-                              /* ── 3. RENDERIZAÇÃO D&D COM LINHA DE BASE PURA (Imagem 2) ── */
-                              <div className="flex flex-col justify-end w-full py-0.5">
-                                {/* Rótulo superior com caixa alta espaçada clássica da Imagem 2 */}
-                                <div className="flex items-center justify-between gap-1 mb-0.5">
-                                  {builderMode === 'edit' ? (
-                                    <input
-                                      type="text"
-                                      value={field.label}
-                                      onChange={(e) =>
-                                        handleUpdateField(secIdx, fieldIdx, {
-                                          ...field,
-                                          label: e.target.value
-                                        })
-                                      }
-                                      className="text-[10px] font-bold text-stone-700 font-sans tracking-[0.2em] uppercase outline-none border-b border-transparent hover:border-stone-400 focus:border-stone-800 transition-colors"
-                                    />
-                                  ) : (
-                                    <label className="text-[10px] font-bold text-stone-700 font-sans tracking-[0.2em] uppercase select-none truncate">
-                                      {field.label}
-                                    </label>
-                                  )}
-                                </div>
-
-                                {/* Input sem caixa, com linha de base nítida e tipografia de ficha */}
-                                {field.type === 'textarea' ? (
-                                  <textarea
-                                    rows={2}
-                                    value={String(val)}
-                                    onChange={(e) =>
-                                      setPreviewValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                                    }
-                                    placeholder={field.placeholder || `Anotações de ${field.label}...`}
-                                    className={`w-full bg-[#fdfcf9] border border-stone-400 rounded-sm p-2 text-xs font-serif text-stone-900 placeholder:text-stone-400 outline-none focus:border-stone-800 resize-none leading-6 [background-image:repeating-linear-gradient(transparent,transparent_23px,#e7e5e4_24px)] transition-all ${
-                                      field.customHeight ? 'flex-1' : ''
-                                    }`}
-                                    style={{
-                                      height: field.customHeight ? `${Math.max(48, field.customHeight - 44)}px` : undefined
-                                    }}
-                                  />
-                                ) : field.type === 'select' ? (
-                                  <select
-                                    value={String(val)}
-                                    onChange={(e) =>
-                                      setPreviewValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                                    }
-                                    className="w-full bg-transparent border-0 border-b-[1.5px] border-stone-400 text-stone-900 font-serif text-xs font-semibold outline-none py-1 focus:border-stone-800 cursor-pointer transition-colors"
-                                  >
-                                    <option value="">Selecione...</option>
-                                    {(field.options || ['Opção 1', 'Opção 2']).map((opt) => (
-                                      <option key={opt} value={opt}>
-                                        {opt}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : field.type === 'checkbox' ? (
-                                  <label className="flex items-center gap-2 py-1 cursor-pointer select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(val)}
-                                      onChange={(e) =>
-                                        setPreviewValues((prev) => ({
-                                          ...prev,
-                                          [field.key]: e.target.checked
-                                        }))
-                                      }
-                                      className="w-4 h-4 rounded cursor-pointer accent-stone-700"
-                                    />
-                                    <span className="text-xs text-stone-800 font-sans font-semibold tracking-wide">
-                                      {val ? 'Sim' : 'Não'}
-                                    </span>
-                                  </label>
-                                ) : (
-                                  <input
-                                    type={field.type === 'number' ? 'number' : 'text'}
-                                    value={typeof val === 'boolean' ? '' : val}
-                                    onChange={(e) => {
-                                      const v = field.type === 'number'
-                                        ? (e.target.value === '' ? '' : Number(e.target.value))
-                                        : e.target.value
-                                      setPreviewValues((prev) => ({ ...prev, [field.key]: v }))
-                                    }}
-                                    placeholder={field.placeholder || ''}
-                                    className="w-full bg-transparent border-0 border-b-[1.5px] border-stone-400 text-stone-900 font-serif text-sm font-semibold outline-none py-1 focus:border-stone-800 transition-colors"
-                                  />
-                                )}
-                              </div>
-                            ) : (
-                              /* ── 4. RENDERIZAÇÃO PADRÃO / CYBERPUNK ── */
-                              <>
-                                <div className="flex items-center justify-between gap-1">
-                                  {builderMode === 'edit' ? (
-                                    <input
-                                      type="text"
-                                      value={field.label}
-                                      onChange={(e) => {
-                                        const newLabel = e.target.value
-                                        handleUpdateField(secIdx, fieldIdx, {
-                                          ...field,
-                                          label: newLabel,
-                                          key:
-                                            !field.key || field.key.startsWith('campo_')
-                                              ? slugify(newLabel)
-                                              : field.key
-                                        })
-                                      }}
-                                      placeholder="Rótulo do Campo..."
-                                      className={`bg-transparent outline-none border-b border-transparent hover:border-white/30 focus:border-white transition-colors px-0.5 flex-1 ${activeTheme.styles.fieldLabel}`}
-                                    />
-                                  ) : (
-                                    <label className={activeTheme.styles.fieldLabel} title={field.label}>
-                                      {field.label}
-                                    </label>
-                                  )}
-
-                                  {field.isModifier && (
-                                    <button
-                                      type="button"
-                                      onClick={() => triggerMockRoll(field.label, val, field.formula)}
-                                      className={activeTheme.styles.rollButton}
-                                      title={`Rolar teste com d20 para ${field.label}`}
-                                    >
-                                      <Dice5 className="w-3 h-3" />
-                                      <span>d20</span>
-                                    </button>
-                                  )}
-                                </div>
-
-                                {field.type === 'textarea' ? (
-                                  <textarea
-                                    rows={2}
-                                    value={String(val)}
-                                    onChange={(e) =>
-                                      setPreviewValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                                    }
-                                    placeholder={field.placeholder || `Digite ${field.label}...`}
-                                    className={`w-full ${activeTheme.styles.textarea} ${field.customHeight ? 'flex-1' : ''}`}
-                                    style={{
-                                      height: field.customHeight ? `${Math.max(48, field.customHeight - 44)}px` : undefined
-                                    }}
-                                  />
-                                ) : field.type === 'number' ? (
-                                  <div className="flex items-center gap-2">
-                                    <input
-                                      type="number"
-                                      value={val === '' ? '' : Number(val)}
-                                      onChange={(e) => {
-                                        const n = e.target.value === '' ? '' : Number(e.target.value)
-                                        setPreviewValues((prev) => ({ ...prev, [field.key]: n }))
-                                      }}
-                                      placeholder={field.placeholder || '0'}
-                                      className={activeTheme.styles.input}
-                                    />
-                                    {field.isModifier && typeof val === 'number' && (
-                                      <span className={activeTheme.styles.modifierChip}>
-                                        {val >= 0 ? `+${val}` : `${val}`}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : field.type === 'checkbox' ? (
-                                  <label className="flex items-center gap-2.5 py-1 cursor-pointer select-none">
-                                    <input
-                                      type="checkbox"
-                                      checked={Boolean(val)}
-                                      onChange={(e) =>
-                                        setPreviewValues((prev) => ({
-                                          ...prev,
-                                          [field.key]: e.target.checked
-                                        }))
-                                      }
-                                      className={`w-4 h-4 rounded cursor-pointer ${activeTheme.styles.checkboxAccent}`}
-                                    />
-                                    <span className={activeTheme.styles.checkboxText}>
-                                      {val ? 'Sim / Ativado' : 'Não / Desativado'}
-                                    </span>
-                                  </label>
-                                ) : field.type === 'select' ? (
-                                  <select
-                                    value={String(val)}
-                                    onChange={(e) =>
-                                      setPreviewValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                                    }
-                                    className={activeTheme.styles.select}
-                                  >
-                                    <option value="">Selecione...</option>
-                                    {(field.options || ['Opção 1', 'Opção 2']).map((opt) => (
-                                      <option key={opt} value={opt}>
-                                        {opt}
-                                      </option>
-                                    ))}
-                                  </select>
-                                ) : (
-                                  <input
-                                    type="text"
-                                    value={String(val)}
-                                    onChange={(e) =>
-                                      setPreviewValues((prev) => ({ ...prev, [field.key]: e.target.value }))
-                                    }
-                                    placeholder={field.placeholder || `Digite ${field.label}...`}
-                                    className={activeTheme.styles.input}
-                                  />
-                                )}
-                              </>
-                            )}
-                          </div>
-
-                          {/* Linha Indicadora de Drop (Depois) */}
-                          {isDropTargetAfter && (
-                            <div className="w-full h-1 bg-vtt-golden rounded-full shadow-[0_0_10px_rgba(233,209,128,0.9)] animate-pulse my-0.5" />
-                          )}
-                        </React.Fragment>
-                      )
-                    })}
-                  </div>
-                )}
+            {/* Retângulo dinâmico enquanto desenha com a ferramenta */}
+            {drawingRect && (
+              <div
+                className="absolute border-2 border-dashed border-sky-400 bg-sky-500/20 rounded pointer-events-none z-50 flex items-center justify-center"
+                style={{
+                  left: Math.min(drawingRect.startX, drawingRect.currentX),
+                  top: Math.min(drawingRect.startY, drawingRect.currentY),
+                  width: Math.abs(drawingRect.currentX - drawingRect.startX),
+                  height: Math.abs(drawingRect.currentY - drawingRect.startY)
+                }}
+              >
+                <span className="text-[10px] text-sky-200 font-mono bg-sky-950/80 px-1 rounded">
+                  {Math.round(Math.abs(drawingRect.currentX - drawingRect.startX))} ×{' '}
+                  {Math.round(Math.abs(drawingRect.currentY - drawingRect.startY))}
+                </span>
               </div>
-            )
-          })}
+            )}
+          </div>
         </div>
+
+        {/* ── PAINEL DA DIREITA: INSPETOR DE PROPRIEDADES (FIGMA STYLE) ── */}
+        <aside className="w-72 border-l border-neutral-800/80 bg-neutral-900/60 backdrop-blur-md flex flex-col z-20 shrink-0 overflow-y-auto">
+          {selectedElement ? (
+            <div className="p-4 space-y-4">
+              {/* Header do Inspetor */}
+              <div className="flex items-center justify-between pb-3 border-b border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-sky-400 uppercase tracking-wider">
+                    {selectedElement.type === 'frame'
+                      ? 'Frame'
+                      : selectedElement.type === 'text_field'
+                        ? 'Campo'
+                        : selectedElement.type === 'stat'
+                          ? 'Atributo'
+                          : selectedElement.type === 'label'
+                            ? 'Texto'
+                            : selectedElement.type}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => duplicateElement(selectedElement.id)}
+                    className="p-1.5 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white"
+                    title="Duplicar (Ctrl+D)"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteElement(selectedElement.id)}
+                    className="p-1.5 rounded hover:bg-red-950 text-neutral-400 hover:text-red-400"
+                    title="Excluir Elemento (Del)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Transform / Dimensões (X, Y, W, H) */}
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                  Posição & Dimensões
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center bg-neutral-800/80 rounded px-2 py-1 border border-neutral-700/60">
+                    <span className="text-neutral-500 font-mono w-4">X</span>
+                    <input
+                      type="number"
+                      value={selectedElement.x}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { x: Number(e.target.value) || 0 })
+                      }
+                      className="w-full bg-transparent outline-none text-right font-mono text-neutral-200"
+                    />
+                  </div>
+                  <div className="flex items-center bg-neutral-800/80 rounded px-2 py-1 border border-neutral-700/60">
+                    <span className="text-neutral-500 font-mono w-4">Y</span>
+                    <input
+                      type="number"
+                      value={selectedElement.y}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { y: Number(e.target.value) || 0 })
+                      }
+                      className="w-full bg-transparent outline-none text-right font-mono text-neutral-200"
+                    />
+                  </div>
+                  <div className="flex items-center bg-neutral-800/80 rounded px-2 py-1 border border-neutral-700/60">
+                    <span className="text-neutral-500 font-mono w-4">L</span>
+                    <input
+                      type="number"
+                      value={selectedElement.width}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, {
+                          width: Math.max(20, Number(e.target.value) || 20)
+                        })
+                      }
+                      className="w-full bg-transparent outline-none text-right font-mono text-neutral-200"
+                    />
+                  </div>
+                  <div className="flex items-center bg-neutral-800/80 rounded px-2 py-1 border border-neutral-700/60">
+                    <span className="text-neutral-500 font-mono w-4">A</span>
+                    <input
+                      type="number"
+                      value={selectedElement.height}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, {
+                          height: Math.max(20, Number(e.target.value) || 20)
+                        })
+                      }
+                      className="w-full bg-transparent outline-none text-right font-mono text-neutral-200"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* PROPRIEDADES ESPECÍFICAS DE CADA TIPO */}
+              {/* 1. SE FOR FRAME */}
+              {selectedElement.type === 'frame' && (
+                <div className="space-y-3 pt-2 border-t border-neutral-800">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                    Configuração do Frame
+                  </span>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Título do Quadro</label>
+                    <input
+                      type="text"
+                      value={selectedElement.title || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { title: e.target.value })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Subtítulo / Descrição</label>
+                    <input
+                      type="text"
+                      value={selectedElement.subtitle || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { subtitle: e.target.value })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="text-xs text-neutral-300">Exibir Cabeçalho</label>
+                    <input
+                      type="checkbox"
+                      checked={selectedElement.showHeader !== false}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { showHeader: e.target.checked })
+                      }
+                      className="rounded accent-sky-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 2. SE FOR TEXT_FIELD */}
+              {selectedElement.type === 'text_field' && (
+                <div className="space-y-3 pt-2 border-t border-neutral-800">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                    Configuração do Campo
+                  </span>
+                  {/* Tipo de estilo: Texto vs Número */}
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1.5">Estilo do Campo</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => updateElement(selectedElement.id, { inputType: 'text' })}
+                        className={`py-1.5 rounded text-xs font-semibold ${
+                          selectedElement.inputType !== 'number'
+                            ? 'bg-sky-500 text-white'
+                            : 'bg-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        Texto
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => updateElement(selectedElement.id, { inputType: 'number' })}
+                        className={`py-1.5 rounded text-xs font-semibold ${
+                          selectedElement.inputType === 'number'
+                            ? 'bg-sky-500 text-white'
+                            : 'bg-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        Número
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Rótulo / Nome</label>
+                    <input
+                      type="text"
+                      value={selectedElement.label || ''}
+                      onChange={(e) => {
+                        const newLabel = e.target.value
+                        const autoSlug = slugify(newLabel)
+                        updateElement(selectedElement.id, {
+                          label: newLabel,
+                          key: selectedElement.key ? selectedElement.key : autoSlug
+                        })
+                      }}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">
+                      Chave / Slug da Variável
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedElement.key || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { key: slugify(e.target.value) })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-300 font-mono outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Dica (Placeholder)</label>
+                    <input
+                      type="text"
+                      value={selectedElement.placeholder || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { placeholder: e.target.value })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+
+                  {selectedElement.inputType === 'number' && (
+                    <div>
+                      <label className="text-[11px] text-neutral-400 block mb-1">
+                        Fórmula de Rolagem (Opcional)
+                      </label>
+                      <input
+                        type="text"
+                        value={selectedElement.formula || ''}
+                        placeholder="ex: 1d20+@{forca}"
+                        onChange={(e) => updateElement(selectedElement.id, { formula: e.target.value })}
+                        className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-300 font-mono outline-none focus:border-sky-500"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 3. SE FOR LABEL / TEXTO */}
+              {selectedElement.type === 'label' && (
+                <div className="space-y-3 pt-2 border-t border-neutral-800">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                    Tipografia & Conteúdo
+                  </span>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Texto de Exibição</label>
+                    <textarea
+                      rows={2}
+                      value={selectedElement.textContent || ''}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { textContent: e.target.value })
+                      }
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500 resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[11px] text-neutral-400 block mb-1">Tamanho</label>
+                      <select
+                        value={selectedElement.fontSize || 16}
+                        onChange={(e) =>
+                          updateElement(selectedElement.id, { fontSize: Number(e.target.value) })
+                        }
+                        className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-200 outline-none"
+                      >
+                        <option value={12}>12px (Pequeno)</option>
+                        <option value={14}>14px (Normal)</option>
+                        <option value={16}>16px (Médio)</option>
+                        <option value={20}>20px (Grande)</option>
+                        <option value={24}>24px (Título)</option>
+                        <option value={32}>32px (Destaque)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] text-neutral-400 block mb-1">Estilo</label>
+                      <select
+                        value={selectedElement.fontFamily || 'cinzel'}
+                        onChange={(e) =>
+                          updateElement(selectedElement.id, {
+                            fontFamily: e.target.value as CanvasElement['fontFamily']
+                          })
+                        }
+                        className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-200 outline-none"
+                      >
+                        <option value="cinzel">Cinzel RPG</option>
+                        <option value="sans">Inter Sans</option>
+                        <option value="mono">Mono</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1.5">Cor do Texto</label>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {['#E9D180', '#FFFFFF', '#9CA3AF', '#EF4444', '#10B981', '#38BDF8'].map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => updateElement(selectedElement.id, { textColor: c })}
+                          className={`w-6 h-6 rounded-full border-2 transition-transform ${
+                            selectedElement.textColor === c
+                              ? 'scale-110 border-white shadow'
+                              : 'border-transparent'
+                          }`}
+                          style={{ backgroundColor: c }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 4. SE FOR STAT (ATRIBUTO D&D) */}
+              {selectedElement.type === 'stat' && (
+                <div className="space-y-3 pt-2 border-t border-neutral-800">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                    Atributo & Rolagem
+                  </span>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Nome do Atributo</label>
+                    <input
+                      type="text"
+                      value={selectedElement.statLabel || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { statLabel: e.target.value })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Chave / Slug</label>
+                    <input
+                      type="text"
+                      value={selectedElement.statKey || ''}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { statKey: slugify(e.target.value) })
+                      }
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-300 font-mono outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Valor Base Inicial</label>
+                    <input
+                      type="number"
+                      value={selectedElement.statScore ?? 10}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { statScore: Number(e.target.value) || 10 })
+                      }
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between pt-1">
+                    <label className="text-xs text-neutral-300">Exibir Modificador (+2)</label>
+                    <input
+                      type="checkbox"
+                      checked={selectedElement.showModifier !== false}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, { showModifier: e.target.checked })
+                      }
+                      className="rounded accent-sky-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 5. SE FOR TEXTAREA */}
+              {selectedElement.type === 'textarea' && (
+                <div className="space-y-3 pt-2 border-t border-neutral-800">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                    Área de Texto
+                  </span>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Rótulo</label>
+                    <input
+                      type="text"
+                      value={selectedElement.label || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { label: e.target.value })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Chave / Slug</label>
+                    <input
+                      type="text"
+                      value={selectedElement.key || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { key: slugify(e.target.value) })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-300 font-mono outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 6. SE FOR DOTS */}
+              {selectedElement.type === 'dots' && (
+                <div className="space-y-3 pt-2 border-t border-neutral-800">
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                    Trilha de Pontos
+                  </span>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Rótulo</label>
+                    <input
+                      type="text"
+                      value={selectedElement.label || ''}
+                      onChange={(e) => updateElement(selectedElement.id, { label: e.target.value })}
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-neutral-400 block mb-1">Total de Pontos (Máx)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={selectedElement.maxDots ?? 5}
+                      onChange={(e) =>
+                        updateElement(selectedElement.id, {
+                          maxDots: Math.max(1, Math.min(12, Number(e.target.value) || 5))
+                        })
+                      }
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2.5 py-1.5 text-xs text-neutral-200 outline-none focus:border-sky-500"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            /* CONFIGURAÇÕES GERAIS DA TELA CANVAS (QUANDO NADA ESTÁ SELECIONADO) */
+            <div className="p-4 space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-neutral-800">
+                <Settings className="w-4 h-4 text-vtt-golden" />
+                <span className="text-xs font-bold text-neutral-300 uppercase tracking-wider">
+                  Configurações da Ficha
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider block">
+                  Área da Ficha (Artboard)
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <label className="text-[10px] text-neutral-500 block mb-1">Largura (px)</label>
+                    <input
+                      type="number"
+                      value={canvas.width}
+                      onChange={(e) =>
+                        commitCanvas({ ...canvas, width: Math.max(600, Number(e.target.value) || 1000) })
+                      }
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-neutral-200 font-mono text-right"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-neutral-500 block mb-1">Altura (px)</label>
+                    <input
+                      type="number"
+                      value={canvas.height}
+                      onChange={(e) =>
+                        commitCanvas({
+                          ...canvas,
+                          height: Math.max(600, Number(e.target.value) || 1200)
+                        })
+                      }
+                      className="w-full bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-neutral-200 font-mono text-right"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-neutral-800/40 border border-neutral-800 rounded-xl space-y-2 text-xs text-neutral-400">
+                <p className="font-semibold text-neutral-300">Dica de Modelagem:</p>
+                <p>
+                  Arraste ferramentas da barra superior para desenhar quadros e campos livremente
+                  na tela.
+                </p>
+                <p>
+                  Campos soltos colocados sobre um <strong className="text-vtt-golden">Frame</strong>{' '}
+                  são automaticamente agrupados e se movem com ele.
+                </p>
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   )
+}
+
+/* ─────────────────────────────────────────────────────────────
+   SUB-COMPONENTE: RENDERIZADOR VISUAL DE UM ELEMENTO NO CANVAS
+───────────────────────────────────────────────────────────── */
+interface CanvasElementViewProps {
+  element: CanvasElement
+  isSelected: boolean
+  isPreviewMode: boolean
+  previewValues: Record<string, any>
+  onChangePreview: (key: string, value: any) => void
+  onSelect: (e: React.MouseEvent) => void
+  onMouseDownDrag: (e: React.MouseEvent) => void
+  onStartResize: (dir: ResizeDirection, e: React.MouseEvent) => void
+}
+
+function CanvasElementView({
+  element,
+  isSelected,
+  isPreviewMode,
+  previewValues,
+  onChangePreview,
+  onSelect,
+  onMouseDownDrag,
+  onStartResize
+}: CanvasElementViewProps): React.JSX.Element {
+  const isInputStyleNumber = element.inputType === 'number'
+  const valKey = element.key || element.id
+  const currentVal = previewValues[valKey] ?? element.defaultValue ?? ''
+
+  // Calcula modificador dinâmico no Stat Box
+  const statScore =
+    previewValues[element.statKey || element.id] ?? element.statScore ?? 10
+  const statMod = Math.floor((Number(statScore) - 10) / 2)
+  const statSign = statMod >= 0 ? `+${statMod}` : `${statMod}`
+
+  return (
+    <div
+      onClick={onSelect}
+      onMouseDown={onMouseDownDrag}
+      className={`absolute select-none transition-shadow ${
+        isSelected
+          ? 'ring-2 ring-sky-400 shadow-[0_0_20px_rgba(56,189,248,0.35)] z-30'
+          : 'hover:ring-1 hover:ring-neutral-500/50'
+      }`}
+      style={{
+        left: element.x,
+        top: element.y,
+        width: element.width,
+        height: element.height
+      }}
+    >
+      {/* ── 1. CAMPO DE ENTRADA (TEXT OU NUMBER) ── */}
+      {element.type === 'text_field' && (
+        <div className="w-full h-full flex flex-col justify-between bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-1.5 focus-within:border-vtt-golden transition-colors">
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider truncate px-1">
+            {element.label || 'Campo'}
+          </span>
+          <div className="flex items-center gap-1">
+            <input
+              type={isInputStyleNumber ? 'number' : 'text'}
+              disabled={!isPreviewMode}
+              value={currentVal}
+              onChange={(e) => onChangePreview(valKey, e.target.value)}
+              placeholder={element.placeholder || '...'}
+              className={`w-full bg-transparent text-xs text-neutral-100 font-medium px-1 outline-none ${
+                isInputStyleNumber ? 'font-mono text-center' : ''
+              } ${!isPreviewMode ? 'pointer-events-none' : ''}`}
+            />
+            {isInputStyleNumber && element.formula && (
+              <span className="text-[9px] font-mono text-vtt-golden bg-vtt-golden/10 px-1 py-0.5 rounded border border-vtt-golden/30 shrink-0">
+                d20
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 2. RÓTULO / TEXTO ESTÁTICO (LABEL) ── */}
+      {element.type === 'label' && (
+        <div
+          className={`w-full h-full flex items-center overflow-hidden ${
+            element.fontFamily === 'cinzel' ? 'font-cinzel' : ''
+          }`}
+          style={{
+            fontSize: `${element.fontSize || 16}px`,
+            color: element.textColor || '#E9D180',
+            fontWeight: element.fontWeight || 'bold',
+            justifyContent:
+              element.textAlign === 'center'
+                ? 'center'
+                : element.textAlign === 'right'
+                  ? 'flex-end'
+                  : 'flex-start'
+          }}
+        >
+          <span className="truncate">{element.textContent || 'Texto de Exibição'}</span>
+        </div>
+      )}
+
+      {/* ── 3. BOX DE ATRIBUTO CLÁSSICO D&D (STAT) ── */}
+      {element.type === 'stat' && (
+        <div className="w-full h-full flex flex-col items-center justify-between bg-neutral-900/95 border border-neutral-700 rounded-xl p-1.5 text-center shadow-lg relative group">
+          <span className="text-[10px] font-bold text-vtt-golden uppercase tracking-wider font-cinzel truncate w-full">
+            {element.statLabel || 'FOR'}
+          </span>
+
+          {element.showModifier !== false && (
+            <div className="text-base font-extrabold text-white font-mono leading-none py-0.5">
+              {statSign}
+            </div>
+          )}
+
+          <div className="w-full flex items-center justify-center">
+            {isPreviewMode ? (
+              <input
+                type="number"
+                value={statScore}
+                onChange={(e) =>
+                  onChangePreview(element.statKey || element.id, Number(e.target.value) || 10)
+                }
+                className="w-10 bg-neutral-800 rounded text-center text-xs text-neutral-300 font-mono py-0.5 border border-neutral-700 outline-none"
+              />
+            ) : (
+              <span className="text-[11px] font-mono text-neutral-400 bg-neutral-800/80 px-2 py-0.5 rounded-full border border-neutral-700">
+                {statScore}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── 4. ÁREA DE TEXTO MULTILINHA (TEXTAREA) ── */}
+      {element.type === 'textarea' && (
+        <div className="w-full h-full flex flex-col bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-2">
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider mb-1 truncate">
+            {element.label || 'Anotações'}
+          </span>
+          <textarea
+            disabled={!isPreviewMode}
+            value={currentVal}
+            onChange={(e) => onChangePreview(valKey, e.target.value)}
+            placeholder={element.placeholder || '...'}
+            className={`flex-1 w-full bg-transparent text-xs text-neutral-200 outline-none resize-none ${
+              !isPreviewMode ? 'pointer-events-none' : ''
+            }`}
+          />
+        </div>
+      )}
+
+      {/* ── 5. TRILHA DE PONTOS (DOTS) ── */}
+      {element.type === 'dots' && (
+        <div className="w-full h-full flex flex-col justify-between bg-neutral-900/90 border border-neutral-700/80 rounded-lg p-2">
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider truncate">
+            {element.label || 'Pontos'}
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {Array.from({ length: element.maxDots || 5 }).map((_, i) => {
+              const currentFilled = Number(currentVal) || 0
+              const isFilled = i < currentFilled
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    if (!isPreviewMode) return
+                    const nextVal = isFilled && i === currentFilled - 1 ? i : i + 1
+                    onChangePreview(valKey, nextVal)
+                  }}
+                  className={`w-3.5 h-3.5 rounded-full border transition-all ${
+                    isFilled
+                      ? 'bg-vtt-golden border-vtt-golden shadow-[0_0_8px_rgba(233,209,128,0.5)]'
+                      : 'bg-neutral-800 border-neutral-600 hover:border-neutral-400'
+                  }`}
+                />
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── 6. MARCADOR / CHECKBOX ── */}
+      {element.type === 'checkbox' && (
+        <label className="w-full h-full flex items-center gap-2 bg-neutral-900/90 border border-neutral-700/80 rounded-lg px-2.5 py-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            disabled={!isPreviewMode}
+            checked={Boolean(currentVal)}
+            onChange={(e) => onChangePreview(valKey, e.target.checked)}
+            className="rounded accent-vtt-golden w-4 h-4"
+          />
+          <span className="text-xs text-neutral-200 font-medium truncate">
+            {element.label || 'Opção'}
+          </span>
+        </label>
+      )}
+
+      {/* ── 7. DIVISOR / LINHA ── */}
+      {element.type === 'divider' && (
+        <div className="w-full h-full flex items-center justify-center">
+          <div className="w-full h-[2px] bg-neutral-700 rounded-full" />
+        </div>
+      )}
+
+      {/* ── GIZMO DE SELEÇÃO E 8 ALÇAS DE REDIMENSIONAMENTO ── */}
+      {isSelected && (
+        <>
+          <div className="absolute -top-5 left-0 px-1.5 py-0.5 rounded bg-sky-500 text-white font-mono text-[9px] flex items-center gap-1 shadow pointer-events-none">
+            <span>
+              {element.width} × {element.height}
+            </span>
+          </div>
+
+          {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as ResizeDirection[]).map((dir) => (
+            <div
+              key={dir}
+              onMouseDown={(e) => onStartResize(dir, e)}
+              className={`absolute w-2 h-2 bg-white border border-sky-500 rounded-sm z-40 ${getHandlePositionClass(
+                dir
+              )} ${getHandleCursorClass(dir)}`}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+function getHandlePositionClass(dir: ResizeDirection): string {
+  switch (dir) {
+    case 'nw':
+      return '-top-1 -left-1'
+    case 'n':
+      return '-top-1 left-1/2 -translate-x-1/2'
+    case 'ne':
+      return '-top-1 -right-1'
+    case 'e':
+      return 'top-1/2 -translate-y-1/2 -right-1'
+    case 'se':
+      return '-bottom-1 -right-1'
+    case 's':
+      return '-bottom-1 left-1/2 -translate-x-1/2'
+    case 'sw':
+      return '-bottom-1 -left-1'
+    case 'w':
+      return 'top-1/2 -translate-y-1/2 -left-1'
+  }
+}
+
+function getHandleCursorClass(dir: ResizeDirection): string {
+  switch (dir) {
+    case 'nw':
+    case 'se':
+      return 'cursor-nwse-resize'
+    case 'ne':
+    case 'sw':
+      return 'cursor-nesw-resize'
+    case 'n':
+    case 's':
+      return 'cursor-ns-resize'
+    case 'e':
+    case 'w':
+      return 'cursor-ew-resize'
+  }
 }

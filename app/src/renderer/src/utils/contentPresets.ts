@@ -115,6 +115,7 @@ export const DEFAULT_CUSTOM_SHEET_SECTIONS: import('../../../preload/index.d').S
     id: 'sec-dnd-id',
     title: 'Identidade & Antecedentes',
     description: 'Registro oficial de identificação e linhagem do aventureiro',
+    column: 'left',
     fields: [
       { id: 'f-name', key: 'character_name', label: 'Character Name', type: 'text', width: 'full', placeholder: 'Nome do Personagem' },
       { id: 'f-bg', key: 'background', label: 'Background', type: 'reference', referenceType: 'background', width: '1/2', placeholder: 'Antecedente...' },
@@ -122,7 +123,7 @@ export const DEFAULT_CUSTOM_SHEET_SECTIONS: import('../../../preload/index.d').S
       { id: 'f-species', key: 'species', label: 'Species', type: 'reference', referenceType: 'race', width: '1/2', placeholder: 'Espécie / Raça...' },
       { id: 'f-subclass', key: 'subclass', label: 'Subclass', type: 'reference', referenceType: 'subclass', width: '1/2', placeholder: 'Subclasse...' },
       { id: 'f-level', key: 'level', label: 'Level', type: 'number', width: '1/4', defaultValue: 1 },
-      { id: 'f-prof', key: 'prof_bonus', label: 'Proficiency', type: 'number', width: '1/4', defaultValue: 2, isModifier: true },
+      { id: 'f-prof', key: 'prof_bonus', label: 'Proficiency', type: 'number', width: '1/4', defaultValue: 2 },
       { id: 'f-ac', key: 'armor_class', label: 'Armor Class', type: 'number', width: '1/4', defaultValue: 14 },
       { id: 'f-speed', key: 'speed', label: 'Speed', type: 'text', width: '1/4', defaultValue: '9m (30ft)' }
     ]
@@ -131,6 +132,7 @@ export const DEFAULT_CUSTOM_SHEET_SECTIONS: import('../../../preload/index.d').S
     id: 'sec-dnd-abilities',
     title: 'Atributos & Modificadores',
     description: 'Valores centrais de habilidade e modificadores de rolagem com d20',
+    column: 'right',
     fields: [
       { id: 'f-str', key: 'strength', label: 'Força (STR)', type: 'number', width: '1/3', defaultValue: 16, isModifier: true },
       { id: 'f-dex', key: 'dexterity', label: 'Destreza (DEX)', type: 'number', width: '1/3', defaultValue: 14, isModifier: true },
@@ -144,6 +146,7 @@ export const DEFAULT_CUSTOM_SHEET_SECTIONS: import('../../../preload/index.d').S
     id: 'sec-dnd-combat',
     title: 'Vitalidade & Sobrevivência',
     description: 'Pontos de vida, dados de vida e salvaguardas',
+    column: 'right',
     fields: [
       { id: 'f-hp-cur', key: 'hp_current', label: 'Current HP', type: 'number', width: '1/3', defaultValue: 28 },
       { id: 'f-hp-max', key: 'hp_max', label: 'Max HP', type: 'number', width: '1/3', defaultValue: 28 },
@@ -156,6 +159,7 @@ export const DEFAULT_CUSTOM_SHEET_SECTIONS: import('../../../preload/index.d').S
     id: 'sec-dnd-notes',
     title: 'Características & Proficiências',
     description: 'Talentos de classe, proficiências em armas e idiomas',
+    column: 'left',
     fields: [
       { id: 'f-features', key: 'class_features', label: 'Features & Traits', type: 'textarea', width: '1/2', placeholder: 'Ação Ágil, Segundo Fôlego, Visão no Escuro...' },
       { id: 'f-profs', key: 'proficiencies', label: 'Proficiencies & Languages', type: 'textarea', width: '1/2', placeholder: 'Armas Marciais, Armaduras Pesadas, Comum, Élfico...' }

@@ -10,6 +10,7 @@ import JoinCampaignPage from './pages/JoinCampaignPage'
 import GameSessionPage  from './pages/GameSessionPage'
 import CampaignSessionsPage from './pages/CampaignSessionsPage'
 import SystemsPage      from './pages/SystemsPage'
+import SystemEditorPage  from './pages/SystemEditorPage'
 import SystemContentPage from './pages/SystemContentPage'
 import SheetsPage       from './pages/SheetsPage'
 import ProfilePage      from './pages/ProfilePage'
@@ -45,6 +46,8 @@ function AppRoutes(): React.JSX.Element {
       <Route path="/session"       element={<PrivateRoute><GameSessionPage /></PrivateRoute>} />
       <Route path="/sessions/:id"  element={<PrivateRoute><GameSessionPage /></PrivateRoute>} />
       <Route path="/systems"       element={<PrivateRoute><SystemsPage /></PrivateRoute>} />
+      <Route path="/systems/new"   element={<PrivateRoute><SystemEditorPage /></PrivateRoute>} />
+      <Route path="/systems/:id/edit" element={<PrivateRoute><SystemEditorPage /></PrivateRoute>} />
       <Route path="/systems/:id/content" element={<PrivateRoute><SystemContentPage /></PrivateRoute>} />
       <Route path="/sheets"        element={<PrivateRoute><SheetsPage /></PrivateRoute>} />
       <Route path="/profile"       element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
